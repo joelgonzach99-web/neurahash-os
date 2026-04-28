@@ -46,7 +46,7 @@ Responde siempre en español, de forma concisa y profesional. Usa datos reales d
         })
       })
       const data=await res.json()
-      const reply=data.content?.[0]?.text||'Error al procesar la respuesta'
+      const reply=data?.content?.[0]?.text||data?.error?.message||JSON.stringify(data)||'Error al procesar la respuesta'
       setMessages(p=>[...p,{role:'assistant',content:reply}])
     }catch(e){
       setMessages(p=>[...p,{role:'assistant',content:'Error de conexión. Intenta de nuevo.'}])
