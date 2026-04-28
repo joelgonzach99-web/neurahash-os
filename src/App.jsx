@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import Charts from './Charts'
-
+import AI from './AI'
 const C={void:'#060608',bg1:'#0a0a0f',card:'#111118',card2:'#161622',glass:'rgba(16,16,28,0.75)',border:'rgba(255,255,255,0.06)',border2:'rgba(255,255,255,0.11)',gold:'#d4a843',gold2:'#f0c060',green:'#10b981',red:'#f43f5e',amber:'#f59e0b',blue:'#6366f1',t1:'#f0f0f8',t2:'#808098',t3:'#40405a'}
 const initials=n=>n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()
 const daysUntil=d=>Math.round((new Date(d)-new Date())/864e5)
@@ -105,6 +105,7 @@ export default function App(){
     {id:'contabilidad',label:'Contabilidad',icon:'⬢'},
     {id:'energia',label:'Energía',icon:'⚡',badge:alertas.length},
     {id:'tareas',label:'Tareas',icon:'✓',section:'Sistema'},
+    {id:'ia',label:'IA',icon:'🧠'},
   ]
 
   const btn=(t)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',borderRadius:8,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600,letterSpacing:'.03em',transition:'all .2s',background:t==='gold'?`linear-gradient(135deg,#d4a843,#e8b84b)`:t==='ghost'?'rgba(255,255,255,0.06)':'transparent',color:t==='gold'?'#000':t==='ghost'?C.t1:C.red,boxShadow:t==='gold'?'0 0 20px rgba(212,168,67,0.25)':'none'})
@@ -415,6 +416,10 @@ export default function App(){
               )
             })}
             {!alertas.length&&<div style={{...panel,padding:40,color:C.green,textAlign:'center',fontSize:12}}>✓ Sin alertas activas.</div>}
+          </div>}
+
+          {page==='ia'&&<div className="page">
+            <AI clientes={clientes} equipos={equipos} finanzas={finanzas} alertas={alertas} tareas={tareas}/>
           </div>}
 
           {page==='tareas'&&<div className="page">
