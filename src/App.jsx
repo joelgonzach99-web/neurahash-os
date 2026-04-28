@@ -201,7 +201,8 @@ export default function App(){
               <span style={{fontSize:9,padding:'2px 6px',borderRadius:10,background:btc.usd_24h_change>=0?'rgba(16,185,129,0.12)':'rgba(244,63,94,0.12)',color:btc.usd_24h_change>=0?C.green:C.red,fontWeight:600}}>{btc.usd_24h_change>=0?'+':''}{btc.usd_24h_change?.toFixed(2)}%</span>
             </div>}
             <button style={{...btn('ghost'),padding:'6px 10px',borderRadius:16,border:`1px solid ${C.border}`,fontSize:14}} onClick={()=>setFocus(!focus)}>{focus?'👁':'🔒'}</button>
-            <button onClick={()=>navigate('energia')} style={{width:34,height:34,background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border}`,borderRadius:8,cursor:'pointer',fontSize:14,color:C.t2,position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <button onClick={()=>supabase.auth.signOut()} style={{...btn('ghost'),padding:'6px 10px',borderRadius:16,border:`1px solid ${C.border}`,fontSize:10,marginRight:4}}>⏻</button>
+<button onClick={()=>navigate('energia')} style={{width:34,height:34,background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border}`,borderRadius:8,cursor:'pointer',fontSize:14,color:C.t2,position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
               🔔{alertas.length>0&&<span style={{position:'absolute',top:-4,right:-4,width:15,height:15,background:C.red,borderRadius:'50%',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}}>{alertas.length}</span>}
             </button>
           </div>
