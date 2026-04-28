@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import Charts from './Charts'
 
 const C={void:'#060608',bg1:'#0a0a0f',card:'#111118',card2:'#161622',glass:'rgba(16,16,28,0.75)',border:'rgba(255,255,255,0.06)',border2:'rgba(255,255,255,0.11)',gold:'#d4a843',gold2:'#f0c060',green:'#10b981',red:'#f43f5e',amber:'#f59e0b',blue:'#6366f1',t1:'#f0f0f8',t2:'#808098',t3:'#40405a'}
 const initials=n=>n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()
@@ -359,6 +360,12 @@ export default function App(){
           </div>}
 
           {page==='contabilidad'&&<div className="page">
+            <div style={{background:'rgba(14,14,22,0.8)',backdropFilter:'blur(20px)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,overflow:'hidden',marginBottom:14}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'13px 18px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'rgba(255,255,255,0.015)'}}>
+                <span style={{fontSize:9,letterSpacing:'.12em',textTransform:'uppercase',color:'#808098',fontWeight:600}}>📊 Ingresos vs Gastos — Últimos 6 meses</span>
+              </div>
+              <div style={{padding:'16px 8px 8px'}}><Charts finanzas={finanzas}/></div>
+            </div>
             <div style={{background:'linear-gradient(135deg,rgba(212,168,67,0.08),rgba(99,102,241,0.05))',border:'1px solid rgba(212,168,67,0.15)',borderRadius:12,padding:'14px 18px',marginBottom:14,display:'flex',flexWrap:'wrap',alignItems:'center',gap:18}}>
               {[['Balance Neto',money(net),net>=0?C.green:C.red,26],['Ingresos','+'+money(ing),C.green,16],['Gastos','-'+money(gst),C.red,16]].map(([l,v,c,sz])=>(
                 <div key={l}><div style={{fontSize:8,color:C.t3,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>{l}</div><div style={{...num,fontSize:sz,color:c,filter:F}}>{v}</div></div>
