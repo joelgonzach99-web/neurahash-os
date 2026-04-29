@@ -1053,24 +1053,22 @@ export default function App(){
               {modal==='equipo'&&<>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
                   <div><label style={fLabel}>Modelo</label>
-                  <select style={fInput} value={form.modelo||''} onChange={e=>{
-                    const h=e.target.value==='Antminer S21'?200:e.target.value==='Antminer S21 XP'?270:e.target.value==='Antminer S21+ Hyd 358T'?358:e.target.value==='Antminer S21+ Hyd 395T'?395:form.hashrate||0
-                    setForm({...form,modelo:e.target.value,hashrate:h})
-                  }}>
-                    <option value="">— Seleccioná modelo —</option>
-                    <optgroup label="✈ Aire (viento)">
-                      <option value="Antminer S21">Antminer S21 — 200 TH/s</option>
-                      <option value="Antminer S21 XP">Antminer S21 XP — 270 TH/s</option>
-                    </optgroup>
-                    <optgroup label="💧 Hidro (agua)">
-                      <option value="Antminer S21+ Hyd 358T">Antminer S21+ Hyd 358T — 358 TH/s</option>
-                      <option value="Antminer S21+ Hyd 395T">Antminer S21+ Hyd 395T — 395 TH/s</option>
-                    </optgroup>
-                    <optgroup label="📝 Otro">
-                      <option value="custom">Ingresar manualmente...</option>
-                    </optgroup>
-                  </select>
-                  {form.modelo==='custom'&&<input style={{...fInput,marginTop:8}} placeholder="Ej: Antminer S19 Pro" value={form.modelo_custom||''} onChange={e=>setForm({...form,modelo_custom:e.target.value})}/>}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                    {[
+                      {label:'S21 Aire',modelo:'Antminer S21',hash:200,icon:'✈'},
+                      {label:'S21 XP Aire',modelo:'Antminer S21 XP',hash:270,icon:'✈'},
+                      {label:'S21+ Hyd 358T',modelo:'Antminer S21+ Hyd 358T',hash:358,icon:'💧'},
+                      {label:'S21+ Hyd 395T',modelo:'Antminer S21+ Hyd 395T',hash:395,icon:'💧'},
+                    ].map(m=>(
+                      <button key={m.modelo} type="button" onClick={()=>setForm({...form,modelo:m.modelo,hashrate:m.hash})} style={{padding:'8px 10px',borderRadius:8,cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:10,fontWeight:600,textAlign:'left',transition:'all .15s',background:form.modelo===m.modelo?'rgba(212,168,67,0.15)':'rgba(255,255,255,0.04)',border:`1px solid ${form.modelo===m.modelo?'rgba(212,168,67,0.5)':'rgba(255,255,255,0.08)'}`,color:form.modelo===m.modelo?'#f0c060':'#808098'}}>
+                        <div style={{fontSize:14,marginBottom:2}}>{m.icon}</div>
+                        <div>{m.label}</div>
+                        <div style={{fontFamily:'monospace',fontSize:9,color:form.modelo===m.modelo?'#d4a843':'#40405a',marginTop:2}}>{m.hash} TH/s</div>
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={()=>setForm({...form,modelo:'custom',hashrate:0})} style={{marginTop:6,width:'100%',padding:'7px',borderRadius:8,cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:10,fontWeight:600,background:form.modelo==='custom'?'rgba(99,102,241,0.15)':'rgba(255,255,255,0.03)',border:`1px solid ${form.modelo==='custom'?'rgba(99,102,241,0.4)':'rgba(255,255,255,0.06)'}`,color:form.modelo==='custom'?'#6366f1':'#40405a'}}>📝 Otro modelo (ingresar manualmente)</button>
+                  {form.modelo==='custom'&&<input style={{...fInput,marginTop:6}} placeholder="Ej: Antminer S19 Pro" value={form.modelo_custom||''} onChange={e=>setForm({...form,modelo_custom:e.target.value})}/>}
                   </div>
                   <div><label style={fLabel}>Estado</label><select style={fInput} value={form.estado||'activo'} onChange={e=>setForm({...form,estado:e.target.value})}><option value="activo">Activo</option><option value="advertencia">Advertencia</option><option value="inactivo">Inactivo</option></select></div>
                 </div>
