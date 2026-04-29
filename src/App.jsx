@@ -467,8 +467,7 @@ export default function App(){
           </div>}
 
           {/* ─── CLIENTES ─── */}
-  {/* ─── CLIENTES ─── */}
- 
+  
             <ClientesPage equipos={equipos} onRefresh={fetchAll} toast={toast}/>
           </div>}
           {/* ─── CONTABILIDAD ─── */}
