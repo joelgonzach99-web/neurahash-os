@@ -17,6 +17,295 @@ const RATES={USD:1,PYG:7500,BOB:6.91}
 
 function toUSD(amount,currency){return Number(amount||0)/RATES[currency||'USD']}
 
+function getProximoCobro(diaCobro){
+  const hoy=new Date()
+  const este=new Date(hoy.getFullYear(),hoy.getMonth(),diaCobro||1)
+  if(este<=hoy)este.setMonth(este.getMonth()+1)
+  return este.toISOString().slice(0,10)
+}
+function getPeriodo(){
+  const d=new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+}
+
+function ClientesInline({equipos=[],fetchAll,toast,clientes=[]}){
+  const[pagos,setPagos]=useState([])
+  const[clienteEquipos,setClienteEquipos]=useState([])
+  const[modal,setModal]=useState(null)
+  const[selected,setSelected]=useState(null)
+  const[form,setForm]=useState({})
+  const[tab,setTab]=useState('lista')
+  const[loading,setLoading]=useState(true)
+
+  useEffect(()=>{fetchData()},[])
+
+  async function fetchData(){
+    setLoading(true)
+    const[p,ce]=await Promise.all([
+      supabase.from('pagos_clientes').select('*').order('creado_en',{ascending:false}),
+      supabase.from('cliente_equipos').select('*'),
+    ])
+    setPagos(p.data||[])
+    setClienteEquipos(ce.data||[])
+    setLoading(false)
+  }
+
+  function getClienteEquipos(clienteId){
+    const ids=clienteEquipos.filter(ce=>ce.cliente_id===clienteId).map(ce=>ce.equipo_id)
+    return equipos.filter(e=>ids.includes(e.id))
+  }
+  function getEstadoPago(clienteId,tipo='hosting'){
+    const p=pagos.find(p=>p.cliente_id===clienteId&&p.periodo===getPeriodo()&&p.tipo===tipo)
+    return p?.estado||'pendiente'
+  }
+  function getDiasAlCobro(c){
+    if(!c.dia_cobro)return null
+    return Math.round((new Date(getProximoCobro(c.dia_cobro))-new Date())/864e5)
+  }
+
+  const alertasProximas=clientes.filter(c=>{const d=getDiasAlCobro(c);return d!==null&&d<=5&&d>=0&&getEstadoPago(c.id)!=='pagado'})
+  const alertasVencidas=clientes.filter(c=>{const d=getDiasAlCobro(c);return d!==null&&d<0&&getEstadoPago(c.id)!=='pagado'})
+  const totalPorCobrar=clientes.filter(c=>getEstadoPago(c.id)!=='pagado').reduce((a,b)=>a+Number(b.tarifa_mensual||0),0)
+
+  async function addCliente(){
+    if(!form.nombre||!form.tarifa_mensual){toast('Completá los campos requeridos','error');return}
+    await supabase.from('clientes').insert([{nombre:form.nombre,contacto:form.contacto||'',pais:form.pais||'Paraguay',tarifa_mensual:Number(form.tarifa_mensual),unidades_asic:Number(form.unidades_asic)||1,dia_cobro:Number(form.dia_cobro)||1,fecha_inicio:form.fecha_inicio||new Date().toISOString().slice(0,10),fecha_vence_contrato:form.fecha_vence_contrato||null,costo_energia:Number(form.costo_energia)||0,notas:form.notas||'',estado:'activo'}])
+    setModal(null);setForm({});fetchAll();fetchData();toast('Cliente agregado ✓','success')
+  }
+  async function asignarEquipo(){
+    if(!form.equipo_id){toast('Seleccioná un equipo','error');return}
+    await supabase.from('cliente_equipos').insert([{cliente_id:selected.id,equipo_id:form.equipo_id}])
+    setModal(null);setForm({});fetchData();toast('Equipo asignado ✓','success')
+  }
+  async function desasignarEquipo(cid,eid){
+    await supabase.from('cliente_equipos').delete().eq('cliente_id',cid).eq('equipo_id',eid)
+    fetchData();toast('Equipo removido','info')
+  }
+  async function marcarPagado(c,tipo){
+    const periodo=getPeriodo()
+    const monto=tipo==='hosting'?c.tarifa_mensual:c.costo_energia
+    const existe=pagos.find(p=>p.cliente_id===c.id&&p.periodo===periodo&&p.tipo===tipo)
+    if(existe&&existe.estado==='pagado'){
+      await supabase.from('pagos_clientes').update({estado:'pendiente',fecha_pago:null}).eq('id',existe.id)
+      fetchData();fetchAll();toast(`${tipo==='hosting'?'Hosting':'Energía'} revertido a pendiente`,'info')
+      return
+    }
+    if(existe){await supabase.from('pagos_clientes').update({estado:'pagado',fecha_pago:new Date().toISOString().slice(0,10)}).eq('id',existe.id)}
+    else{await supabase.from('pagos_clientes').insert([{cliente_id:c.id,tipo,monto:Number(monto)||0,moneda:'USD',fecha_pago:new Date().toISOString().slice(0,10),periodo,estado:'pagado'}])}
+    await supabase.from('finanzas').insert([{tipo:'ingreso',monto:Number(monto)||0,moneda:'USD',descripcion:`${tipo==='hosting'?'Hosting':'Energía'}: ${c.nombre}`,categoria:tipo==='hosting'?'Hosting':'Energía',fecha:new Date().toISOString().slice(0,10),responsable:'Joel',pais:c.pais||'Paraguay'}])
+    fetchData();fetchAll();toast(`${tipo==='hosting'?'Hosting':'Energía'} pagado ✓`,'success')
+  }
+  async function delCliente(id){
+    await supabase.from('clientes').delete().eq('id',id);fetchAll();fetchData();toast('Eliminado','info')
+  }
+
+  const panel={background:'rgba(14,14,22,0.8)',backdropFilter:'blur(20px)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,overflow:'hidden'}
+  const panelHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'13px 18px',borderBottom:'1px solid rgba(255,255,255,0.06)',background:'rgba(255,255,255,0.015)'}
+  const btnS=(t)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600,transition:'all .2s',background:t==='gold'?'linear-gradient(135deg,#d4a843,#e8b84b)':t==='green'?'rgba(16,185,129,0.12)':'rgba(255,255,255,0.06)',color:t==='gold'?'#000':t==='green'?'#10b981':'#f0f0f8',border:t==='green'?'1px solid rgba(16,185,129,0.25)':'1px solid rgba(255,255,255,0.06)'})
+  const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.11)',borderRadius:8,padding:'10px 13px',color:'#f0f0f8',fontFamily:'Inter,sans-serif',fontSize:12,outline:'none',boxSizing:'border-box'}
+  const fLabel={display:'block',fontSize:9,letterSpacing:'.15em',textTransform:'uppercase',color:'#40405a',marginBottom:6,fontWeight:600}
+  const num={fontFamily:'monospace',fontWeight:700}
+
+  if(loading)return <div style={{padding:40,textAlign:'center',color:'#40405a',fontSize:11}}>Cargando clientes...</div>
+
+  return(
+    <div>
+      {(alertasVencidas.length>0||alertasProximas.length>0)&&(
+        <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:8}}>
+          {alertasVencidas.length>0&&<div style={{background:'rgba(244,63,94,0.08)',border:'1px solid rgba(244,63,94,0.25)',borderRadius:10,padding:'10px 16px',display:'flex',alignItems:'center',gap:10}}>
+            <span>🔴</span><div><div style={{fontSize:10,fontWeight:600,color:'#f43f5e'}}>COBROS VENCIDOS</div><div style={{fontSize:9,color:'#808098',marginTop:2}}>{alertasVencidas.map(c=>c.nombre).join(', ')}</div></div>
+          </div>}
+          {alertasProximas.length>0&&<div style={{background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.25)',borderRadius:10,padding:'10px 16px',display:'flex',alignItems:'center',gap:10}}>
+            <span>🟡</span><div><div style={{fontSize:10,fontWeight:600,color:'#f59e0b'}}>COBROS PRÓXIMOS (5 días)</div><div style={{fontSize:9,color:'#808098',marginTop:2}}>{alertasProximas.map(c=>`${c.nombre} (${getDiasAlCobro(c)}d)`).join(', ')}</div></div>
+          </div>}
+        </div>
+      )}
+
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div style={{display:'flex',gap:4,background:'rgba(255,255,255,0.03)',padding:4,borderRadius:10}}>
+          {[['lista','👥 Clientes'],['pagos','💰 Pagos'],['alertas','🔔 Alertas']].map(([t,l])=>(
+            <button key={t} onClick={()=>setTab(t)} style={{background:tab===t?'rgba(212,168,67,0.1)':'none',border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600,padding:'7px 14px',borderRadius:8,color:tab===t?'#f0c060':'#808098'}}>
+              {l}{t==='alertas'&&(alertasProximas.length+alertasVencidas.length)>0&&<span style={{marginLeft:5,background:'#f43f5e',color:'#fff',fontSize:8,padding:'1px 5px',borderRadius:10}}>{alertasProximas.length+alertasVencidas.length}</span>}
+            </button>
+          ))}
+        </div>
+        <button style={btnS('gold')} onClick={()=>setModal('cliente')}>+ Nuevo cliente</button>
+      </div>
+
+      {tab==='lista'&&<div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {clientes.map(c=>{
+          const eqs=getClienteEquipos(c.id)
+          const dias=getDiasAlCobro(c)
+          const estHost=getEstadoPago(c.id,'hosting')
+          const estEn=getEstadoPago(c.id,'energia')
+          const proximo=c.dia_cobro?getProximoCobro(c.dia_cobro):null
+          const urgente=dias!==null&&dias<=5&&dias>=0
+          const vencido=dias!==null&&dias<0
+          return(
+            <div key={c.id} style={{...panel,border:`1px solid ${vencido&&estHost!=='pagado'?'rgba(244,63,94,0.3)':urgente&&estHost!=='pagado'?'rgba(245,158,11,0.2)':'rgba(255,255,255,0.06)'}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+                <div style={{width:36,height:36,borderRadius:'50%',background:'linear-gradient(135deg,rgba(212,168,67,0.5),#d4a843)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#000',flexShrink:0}}>{c.nombre.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div>
+                  <div style={{fontSize:9,color:'#40405a',marginTop:2}}>{c.contacto} · {c.pais} · {c.unidades_asic} ASICs</div>
+                </div>
+                {proximo&&<div style={{textAlign:'center',padding:'0 12px',borderLeft:'1px solid rgba(255,255,255,0.06)'}}>
+                  <div style={{fontSize:8,color:'#40405a',marginBottom:3,textTransform:'uppercase'}}>Próximo cobro</div>
+                  <div style={{...num,fontSize:11,color:vencido?'#f43f5e':urgente?'#f59e0b':'#f0f0f8'}}>{proximo}</div>
+                  <div style={{fontSize:8,marginTop:2,color:vencido?'#f43f5e':urgente?'#f59e0b':'#40405a'}}>{vencido?`Vencido ${Math.abs(dias)}d`:dias===0?'Hoy':`En ${dias}d`}</div>
+                </div>}
+                <div style={{textAlign:'right',padding:'0 12px',borderLeft:'1px solid rgba(255,255,255,0.06)'}}>
+                  <div style={{...num,fontSize:16,color:'#f0c060'}}>${Number(c.tarifa_mensual||0).toLocaleString()}</div>
+                  <div style={{fontSize:8,color:'#40405a'}}>hosting/mes</div>
+                  {c.costo_energia>0&&<div style={{fontSize:9,color:'#40405a',marginTop:2}}>${Number(c.costo_energia||0).toLocaleString()} energía</div>}
+                </div>
+                <button style={{...btnS('ghost'),padding:'5px 8px',fontSize:9,color:'#f43f5e',border:'none',background:'none',cursor:'pointer'}} onClick={()=>delCliente(c.id)}>🗑</button>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr'}}>
+                <div style={{padding:'12px 16px',borderRight:'1px solid rgba(255,255,255,0.06)'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                    <span style={{fontSize:9,color:'#40405a',textTransform:'uppercase',fontWeight:600}}>⛏ Equipos</span>
+                    <button style={{...btnS('ghost'),padding:'3px 8px',fontSize:9}} onClick={()=>{setSelected(c);setModal('equipo')}}>+ Asignar</button>
+                  </div>
+                  {eqs.length===0&&<div style={{fontSize:9,color:'#40405a',fontStyle:'italic'}}>Sin equipos</div>}
+                  {eqs.map(eq=>(
+                    <div key={eq.id} style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,padding:'5px 8px',background:'rgba(255,255,255,0.03)',borderRadius:6}}>
+                      <span style={{width:5,height:5,borderRadius:'50%',background:eq.estado==='activo'?'#10b981':'#f59e0b',flexShrink:0}}/>
+                      <span style={{flex:1,fontSize:10,fontWeight:500}}>{eq.modelo}</span>
+                      <span style={{...num,fontSize:9,color:'#f0c060'}}>{eq.hashrate}TH</span>
+                      <button style={{background:'none',border:'none',cursor:'pointer',color:'#40405a',fontSize:11}} onClick={()=>desasignarEquipo(c.id,eq.id)}>×</button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{padding:'12px 16px',borderRight:'1px solid rgba(255,255,255,0.06)'}}>
+                  <div style={{fontSize:9,color:'#40405a',textTransform:'uppercase',fontWeight:600,marginBottom:8}}>💳 Hosting — {getPeriodo()}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                    <span style={{fontSize:16,padding:'6px 10px',background:estHost==='pagado'?'rgba(16,185,129,0.1)':'rgba(244,63,94,0.08)',borderRadius:8,border:`1px solid ${estHost==='pagado'?'rgba(16,185,129,0.2)':'rgba(244,63,94,0.15)'}`}}>{estHost==='pagado'?'✅':'⏳'}</span>
+                    <div><div style={{fontSize:11,fontWeight:600,color:estHost==='pagado'?'#10b981':'#f43f5e'}}>{estHost==='pagado'?'Pagado':'Pendiente'}</div><div style={{...num,fontSize:10,color:'#f0c060'}}>${Number(c.tarifa_mensual||0).toLocaleString()}</div></div>
+                  </div>
+                  <button style={estHost==='pagado'?{...btnS('ghost'),fontSize:9,padding:'5px 10px',color:'#f59e0b',border:'1px solid rgba(245,158,11,0.2)'}:btnS('green')} onClick={()=>marcarPagado(c,'hosting')}>{estHost==='pagado'?'↩ Revertir':'✓ Marcar pagado'}</button>
+                </div>
+                <div style={{padding:'12px 16px'}}>
+                  <div style={{fontSize:9,color:'#40405a',textTransform:'uppercase',fontWeight:600,marginBottom:8}}>⚡ Energía — {getPeriodo()}</div>
+                  {Number(c.costo_energia||0)>0?(
+                    <>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                        <span style={{fontSize:16,padding:'6px 10px',background:estEn==='pagado'?'rgba(16,185,129,0.1)':'rgba(245,158,11,0.08)',borderRadius:8,border:`1px solid ${estEn==='pagado'?'rgba(16,185,129,0.2)':'rgba(245,158,11,0.2)'}`}}>{estEn==='pagado'?'✅':'⚡'}</span>
+                        <div><div style={{fontSize:11,fontWeight:600,color:estEn==='pagado'?'#10b981':'#f59e0b'}}>{estEn==='pagado'?'Pagado':'Pendiente'}</div><div style={{...num,fontSize:10,color:'#f0c060'}}>${Number(c.costo_energia||0).toLocaleString()}</div></div>
+                      </div>
+                      <button style={{...btnS('ghost'),border:`1px solid ${estEn==='pagado'?'rgba(244,63,94,0.2)':'rgba(245,158,11,0.3)'}`,color:estEn==='pagado'?'#f43f5e':'#f59e0b'}} onClick={()=>marcarPagado(c,'energia')}>{estEn==='pagado'?'↩ Revertir':'✓ Marcar pagado'}</button>
+                    </>
+                  ):<div style={{fontSize:9,color:'#40405a',fontStyle:'italic'}}>Sin costo de energía</div>}
+                </div>
+              </div>
+              {c.fecha_vence_contrato&&<div style={{padding:'8px 16px',borderTop:'1px solid rgba(255,255,255,0.06)',background:'rgba(255,255,255,0.01)',display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:9,color:'#40405a'}}>📄 Contrato vence:</span>
+                <span style={{...num,fontSize:9,color:Math.round((new Date(c.fecha_vence_contrato)-new Date())/864e5)<30?'#f59e0b':'#808098'}}>{c.fecha_vence_contrato}</span>
+                {c.notas&&<span style={{marginLeft:8,fontSize:8,color:'#40405a',fontStyle:'italic'}}>📝 {c.notas}</span>}
+              </div>}
+            </div>
+          )
+        })}
+        {!clientes.length&&<div style={{...panel,padding:40,color:'#40405a',textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin clientes registrados</div>}
+      </div>}
+
+      {tab==='pagos'&&<div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
+          {[
+            {label:'Hosting cobrado este mes',val:'$'+pagos.filter(p=>p.tipo==='hosting'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0).toLocaleString(),color:'#10b981'},
+            {label:'Energía cobrada este mes',val:'$'+pagos.filter(p=>p.tipo==='energia'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0).toLocaleString(),color:'#f59e0b'},
+            {label:'Pendiente de cobro',val:'$'+totalPorCobrar.toLocaleString(),color:'#f43f5e'},
+          ].map(s=>(
+            <div key={s.label} style={{background:'rgba(14,14,22,0.8)',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:'12px 16px'}}>
+              <div style={{fontSize:8,color:'#40405a',textTransform:'uppercase',marginBottom:6}}>{s.label}</div>
+              <div style={{...num,fontSize:18,color:s.color}}>{s.val}</div>
+            </div>
+          ))}
+        </div>
+        <div style={panel}>
+          <div style={panelHdr}><span style={{fontSize:9,color:'#808098',textTransform:'uppercase',fontWeight:600}}>Historial de pagos</span></div>
+          {pagos.slice(0,20).map(p=>{
+            const c=clientes.find(c=>c.id===p.cliente_id)
+            return(<div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+              <span style={{width:6,height:6,borderRadius:'50%',background:p.tipo==='hosting'?'#6366f1':'#f59e0b',flexShrink:0}}/>
+              <div style={{flex:1}}><div style={{fontSize:10,fontWeight:600}}>{c?.nombre||'—'}</div><div style={{fontSize:8,color:'#40405a'}}>{p.tipo==='hosting'?'Hosting':'Energía'} · {p.periodo}</div></div>
+              <span style={{fontSize:8,color:'#40405a'}}>{p.fecha_pago}</span>
+              <span style={{fontSize:8,padding:'2px 8px',borderRadius:10,background:p.estado==='pagado'?'rgba(16,185,129,0.1)':'rgba(244,63,94,0.1)',color:p.estado==='pagado'?'#10b981':'#f43f5e'}}>{p.estado}</span>
+              <span style={{...num,fontSize:11,color:'#f0c060'}}>${Number(p.monto).toLocaleString()}</span>
+            </div>)
+          })}
+          {!pagos.length&&<div style={{padding:40,color:'#40405a',textAlign:'center',fontSize:11}}>Sin historial</div>}
+        </div>
+      </div>}
+
+      {tab==='alertas'&&<div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {[...alertasVencidas,...alertasProximas].map(c=>{
+          const dias=getDiasAlCobro(c)
+          return(<div key={c.id} style={{...panel,border:`1px solid ${dias<0?'rgba(244,63,94,0.3)':'rgba(245,158,11,0.3)'}`}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px'}}>
+              <span style={{fontSize:24}}>{dias<0?'🔴':'🟡'}</span>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{c.nombre}</div><div style={{fontSize:9,color:'#40405a',marginTop:2}}>Día de cobro: {c.dia_cobro} de cada mes</div></div>
+              <div style={{textAlign:'right'}}><div style={{...num,fontSize:16,color:dias<0?'#f43f5e':'#f59e0b'}}>{dias<0?`${Math.abs(dias)}d vencido`:`${dias}d para cobrar`}</div><div style={{...num,fontSize:13,color:'#f0c060',marginTop:4}}>${Number(c.tarifa_mensual||0).toLocaleString()}</div></div>
+            </div>
+            <div style={{display:'flex',gap:8,padding:'10px 16px',borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+              {getEstadoPago(c.id,'hosting')!=='pagado'&&<button style={btnS('green')} onClick={()=>marcarPagado(c,'hosting')}>✓ Hosting pagado</button>}
+              {Number(c.costo_energia||0)>0&&getEstadoPago(c.id,'energia')!=='pagado'&&<button style={{...btnS('ghost'),border:'1px solid rgba(245,158,11,0.3)',color:'#f59e0b'}} onClick={()=>marcarPagado(c,'energia')}>✓ Energía pagada</button>}
+            </div>
+          </div>)
+        })}
+        {alertasProximas.length===0&&alertasVencidas.length===0&&<div style={{...panel,padding:40,color:'#10b981',textAlign:'center',fontSize:12}}>✓ Sin alertas — todo al día</div>}
+      </div>}
+
+      {modal&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',padding:16}} onClick={e=>{if(e.target===e.currentTarget){setModal(null);setForm({});setSelected(null)}}}>
+        <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:'1px solid rgba(255,255,255,0.11)',borderRadius:16,width:'100%',maxWidth:500,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.7)'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+            <div style={{fontFamily:'monospace',fontSize:11,fontWeight:700,letterSpacing:'.08em'}}>{modal==='cliente'?'NUEVO CLIENTE':'ASIGNAR EQUIPO'}</div>
+            <button style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.06)',color:'#808098',width:28,height:28,borderRadius:6,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>{setModal(null);setForm({});setSelected(null)}}>×</button>
+          </div>
+          <div style={{padding:18}}>
+            {modal==='cliente'&&<>
+              <div style={{marginBottom:12}}><label style={fLabel}>Nombre</label><input style={fInput} placeholder="Carlos Reyes" value={form.nombre||''} onChange={e=>setForm({...form,nombre:e.target.value})}/></div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                <div><label style={fLabel}>Contacto</label><input style={fInput} placeholder="+595 9..." value={form.contacto||''} onChange={e=>setForm({...form,contacto:e.target.value})}/></div>
+                <div><label style={fLabel}>País</label><select style={fInput} value={form.pais||'Paraguay'} onChange={e=>setForm({...form,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Otro</option></select></div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
+                <div><label style={fLabel}>ASICs</label><input style={fInput} type="number" placeholder="3" value={form.unidades_asic||''} onChange={e=>setForm({...form,unidades_asic:e.target.value})}/></div>
+                <div><label style={fLabel}>Hosting (USD)</label><input style={fInput} type="number" placeholder="420" value={form.tarifa_mensual||''} onChange={e=>setForm({...form,tarifa_mensual:e.target.value})}/></div>
+                <div><label style={fLabel}>Energía (USD)</label><input style={fInput} type="number" placeholder="150" value={form.costo_energia||''} onChange={e=>setForm({...form,costo_energia:e.target.value})}/></div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
+                <div><label style={fLabel}>Día de cobro</label><input style={fInput} type="number" min="1" max="31" placeholder="15" value={form.dia_cobro||''} onChange={e=>setForm({...form,dia_cobro:e.target.value})}/></div>
+                <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={form.fecha_inicio||''} onChange={e=>setForm({...form,fecha_inicio:e.target.value})}/></div>
+                <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={form.fecha_vence_contrato||''} onChange={e=>setForm({...form,fecha_vence_contrato:e.target.value})}/></div>
+              </div>
+              <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} placeholder="Observaciones..." value={form.notas||''} onChange={e=>setForm({...form,notas:e.target.value})}/></div>
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+                <button style={btnS('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
+                <button style={btnS('gold')} onClick={addCliente}>✓ Guardar</button>
+              </div>
+            </>}
+            {modal==='equipo'&&<>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:'#808098',marginBottom:12}}>Asignando a: <strong style={{color:'#f0f0f8'}}>{selected?.nombre}</strong></div>
+                <label style={fLabel}>Equipo</label>
+                <select style={fInput} value={form.equipo_id||''} onChange={e=>setForm({...form,equipo_id:e.target.value})}>
+                  <option value="">— Seleccioná —</option>
+                  {equipos.map(eq=><option key={eq.id} value={eq.id}>{eq.modelo} — {eq.hashrate}TH ({eq.estado})</option>)}
+                </select>
+              </div>
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+                <button style={btnS('ghost')} onClick={()=>{setModal(null);setForm({});setSelected(null)}}>Cancelar</button>
+                <button style={btnS('gold')} onClick={asignarEquipo}>✓ Asignar</button>
+              </div>
+            </>}
+          </div>
+        </div>
+      </div>}
+    </div>
+  )
+}
+
 export default function App(){
   const[page,setPage]=useState('dashboard')
   const[clientes,setClientes]=useState([])
@@ -468,21 +757,7 @@ export default function App(){
 
           {/* ─── CLIENTES ─── */}
           {page==='clientes'&&<div className="page">
-            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
-              <button className="btn-gold" style={btn('gold')} onClick={()=>setModal('cliente')}>+ Nuevo cliente</button>
-            </div>
-            <div style={panel}>
-              {clientes.map(c=>(
-                <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',borderBottom:`1px solid ${C.border}`}}>
-                  <div style={{width:30,height:30,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.6),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#000',flexShrink:0}}>{initials(c.nombre)}</div>
-                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre}</div><div style={{fontSize:9,color:C.t3,marginTop:2}}>{c.contacto} · {c.pais}</div></div>
-                  <div style={{textAlign:'center',padding:'0 10px',flexShrink:0}}><div style={{...num,fontSize:15,color:C.gold2}}>{c.unidades_asic}</div><div style={{fontSize:8,color:C.t3,textTransform:'uppercase'}}>ASICs</div></div>
-                  <div style={{textAlign:'right',flexShrink:0}}><div style={{...num,fontSize:12,color:C.green,filter:F}}>{money(c.tarifa_mensual)}/mo</div></div>
-                  <button style={{...btn('ghost'),padding:'5px 8px',fontSize:9,flexShrink:0,color:C.red}} onClick={()=>del('clientes',c.id)}>🗑</button>
-                </div>
-              ))}
-              {!clientes.length&&<div style={{padding:40,color:C.t3,textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin clientes</div>}
-            </div>
+            <ClientesInline equipos={equipos} fetchAll={fetchAll} toast={toast} clientes={clientes}/>
           </div>}
 
           {/* ─── CONTABILIDAD ─── */}
