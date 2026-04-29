@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import Charts from './Charts'
 import AI from './AI'
-import ClientesPage from './ClientesPage'
+
 const C={void:'#060608',bg1:'#0a0a0f',card:'#111118',card2:'#161622',glass:'rgba(16,16,28,0.75)',border:'rgba(255,255,255,0.06)',border2:'rgba(255,255,255,0.11)',gold:'#d4a843',gold2:'#f0c060',green:'#10b981',red:'#f43f5e',amber:'#f59e0b',blue:'#6366f1',purple:'#a855f7',t1:'#f0f0f8',t2:'#808098',t3:'#40405a'}
 const initials=n=>n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()
 const daysUntil=d=>Math.round((new Date(d)-new Date())/864e5)
