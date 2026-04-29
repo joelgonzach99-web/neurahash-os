@@ -406,8 +406,9 @@ export default function App(){
     setModal(null);setForm({});fetchAll();toast('Cliente agregado ✓','success')
   }
   async function addEquipo(){
-    if(!form.modelo){toast('Ingresá el modelo','error');return}
-    await supabase.from('equipos').insert([{modelo:form.modelo,hashrate:Number(form.hashrate)||0,temperatura:Number(form.temperatura)||0,estado:form.estado||'activo'}])
+    const modeloFinal=form.modelo==='custom'?form.modelo_custom:form.modelo
+    if(!modeloFinal){toast('Ingresá el modelo','error');return}
+    await supabase.from('equipos').insert([{modelo:modeloFinal,hashrate:Number(form.hashrate)||0,temperatura:Number(form.temperatura)||0,estado:form.estado||'activo'}])
     setModal(null);setForm({});fetchAll();toast('Equipo agregado ✓','success')
   }
   async function addFinanza(){
@@ -1051,7 +1052,26 @@ export default function App(){
 
               {modal==='equipo'&&<>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Modelo</label><input style={fInput} placeholder="Antminer S21" value={form.modelo||''} onChange={e=>setForm({...form,modelo:e.target.value})}/></div>
+                  <div><label style={fLabel}>Modelo</label>
+                  <select style={fInput} value={form.modelo||''} onChange={e=>{
+                    const h=e.target.value==='Antminer S21'?200:e.target.value==='Antminer S21 XP'?270:e.target.value==='Antminer S21+ Hyd 358T'?358:e.target.value==='Antminer S21+ Hyd 395T'?395:form.hashrate||0
+                    setForm({...form,modelo:e.target.value,hashrate:h})
+                  }}>
+                    <option value="">— Seleccioná modelo —</option>
+                    <optgroup label="✈ Aire (viento)">
+                      <option value="Antminer S21">Antminer S21 — 200 TH/s</option>
+                      <option value="Antminer S21 XP">Antminer S21 XP — 270 TH/s</option>
+                    </optgroup>
+                    <optgroup label="💧 Hidro (agua)">
+                      <option value="Antminer S21+ Hyd 358T">Antminer S21+ Hyd 358T — 358 TH/s</option>
+                      <option value="Antminer S21+ Hyd 395T">Antminer S21+ Hyd 395T — 395 TH/s</option>
+                    </optgroup>
+                    <optgroup label="📝 Otro">
+                      <option value="custom">Ingresar manualmente...</option>
+                    </optgroup>
+                  </select>
+                  {form.modelo==='custom'&&<input style={{...fInput,marginTop:8}} placeholder="Ej: Antminer S19 Pro" value={form.modelo_custom||''} onChange={e=>setForm({...form,modelo_custom:e.target.value})}/>}
+                  </div>
                   <div><label style={fLabel}>Estado</label><select style={fInput} value={form.estado||'activo'} onChange={e=>setForm({...form,estado:e.target.value})}><option value="activo">Activo</option><option value="advertencia">Advertencia</option><option value="inactivo">Inactivo</option></select></div>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
