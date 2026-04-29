@@ -467,24 +467,10 @@ export default function App(){
           </div>}
 
           {/* ─── CLIENTES ─── */}
-          {page==='clientes'&&<div className="page">
-            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
-              <button className="btn-gold" style={btn('gold')} onClick={()=>setModal('cliente')}>+ Nuevo cliente</button>
-            </div>
-            <div style={panel}>
-              {clientes.map(c=>(
-                <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',borderBottom:`1px solid ${C.border}`}}>
-                  <div style={{width:30,height:30,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.6),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#000',flexShrink:0}}>{initials(c.nombre)}</div>
-                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre}</div><div style={{fontSize:9,color:C.t3,marginTop:2}}>{c.contacto} · {c.pais}</div></div>
-                  <div style={{textAlign:'center',padding:'0 10px',flexShrink:0}}><div style={{...num,fontSize:15,color:C.gold2}}>{c.unidades_asic}</div><div style={{fontSize:8,color:C.t3,textTransform:'uppercase'}}>ASICs</div></div>
-                  <div style={{textAlign:'right',flexShrink:0}}><div style={{...num,fontSize:12,color:C.green,filter:F}}>{money(c.tarifa_mensual)}/mo</div></div>
-                  <button style={{...btn('ghost'),padding:'5px 8px',fontSize:9,flexShrink:0,color:C.red}} onClick={()=>del('clientes',c.id)}>🗑</button>
-                </div>
-              ))}
-              {!clientes.length&&<div style={{padding:40,color:C.t3,textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin clientes</div>}
-            </div>
+  {/* ─── CLIENTES ─── */}
+ 
+            <ClientesPage equipos={equipos} onRefresh={fetchAll} toast={toast}/>
           </div>}
-
           {/* ─── CONTABILIDAD ─── */}
           {page==='contabilidad'&&<div className="page">
 
