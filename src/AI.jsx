@@ -39,8 +39,7 @@ Responde siempre en español, de forma concisa y profesional. Usa datos reales d
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          model:'claude-sonnet-4-5',
-          max_tokens:1000,
+model: 'claude-sonnet-4-20250514',          max_tokens:1000,
           system:context,
           messages:[...messages,userMsg].filter(m=>m.role!=='system')
         })
