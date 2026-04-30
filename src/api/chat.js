@@ -15,8 +15,13 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(req.body),
     })
-    const data = await response.json()
-    return res.status(200).json(data)
+    const text = await response.text()
+    try {
+      const data = JSON.parse(text)
+      return res.status(200).json(data)
+    } catch {
+      return res.status(200).json({ content: [{ text }] })
+    }
   } catch (e) {
     return res.status(500).json({ error: e.message })
   }
