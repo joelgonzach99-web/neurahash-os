@@ -1,6 +1,4 @@
-// ClientesPage.jsx — Componente completo de Clientes mejorado
-// Integrar en App.jsx reemplazando el bloque {page==='clientes'&&...}
-
+// ClientesPage.jsx — Con editar fecha de cobro + botón WhatsApp
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 
@@ -31,6 +29,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   const[selected,setSelected]=useState(null)
   const[form,setForm]=useState({})
   const[tab,setTab]=useState('lista')
+  const[editandoDia,setEditandoDia]=useState(null) // id del cliente que se está editando
+  const[diaTemp,setDiaTemp]=useState('')
 
   useEffect(()=>{fetchData()},[])
 
@@ -70,7 +70,35 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     return daysUntil(proximo)
   }
 
-  // Alertas: clientes con cobro en ≤5 días
+  // ── EDITAR DÍA DE COBRO ──────────────────────────────────────────────────
+  function iniciarEditDia(cliente){
+    setEditandoDia(cliente.id)
+    setDiaTemp(String(cliente.dia_cobro||1))
+  }
+
+  async function guardarDia(cliente){
+    const dia=parseInt(diaTemp)
+    if(!dia||dia<1||dia>31){toast('Día inválido (1-31)','error');return}
+    await supabase.from('clientes').update({dia_cobro:dia}).eq('id',cliente.id)
+    setEditandoDia(null)
+    setDiaTemp('')
+    fetchData()
+    toast('Fecha de cobro actualizada ✓','success')
+    if(onRefresh)onRefresh()
+  }
+
+  // ── WHATSAPP ─────────────────────────────────────────────────────────────
+  function abrirWhatsApp(cliente){
+    const proximo=cliente.dia_cobro?getProximoCobro(cliente.dia_cobro):null
+    const fecha=proximo?new Date(proximo).toLocaleDateString('es',{day:'numeric',month:'long'}):'próximamente'
+    const msg=`Hola ${cliente.nombre.split(' ')[0]} 👋, te recuerdo que tu pago de hosting de *${money(cliente.tarifa_mensual)}* vence el *${fecha}*. Cualquier consulta estoy disponible. Saludos, *NeuraHash* ⛏`
+    const tel=(cliente.contacto||'').replace(/\D/g,'')
+    const url=tel
+      ?`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`
+      :`https://wa.me/?text=${encodeURIComponent(msg)}`
+    window.open(url,'_blank')
+  }
+
   const alertasProximas=clientes.filter(c=>{
     const dias=getDiasAlCobro(c)
     return dias!==null&&dias<=5&&dias>=0&&getEstadoPago(c)!=='pagado'
@@ -84,17 +112,11 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   async function addCliente(){
     if(!form.nombre||!form.tarifa_mensual){toast('Completá los campos requeridos','error');return}
     await supabase.from('clientes').insert([{
-      nombre:form.nombre,
-      contacto:form.contacto||'',
-      pais:form.pais||'Paraguay',
-      tarifa_mensual:Number(form.tarifa_mensual),
-      unidades_asic:Number(form.unidades_asic)||1,
-      dia_cobro:Number(form.dia_cobro)||1,
-      fecha_inicio:form.fecha_inicio||new Date().toISOString().slice(0,10),
-      fecha_vence_contrato:form.fecha_vence_contrato||null,
-      costo_energia:Number(form.costo_energia)||0,
-      notas:form.notas||'',
-      estado:'activo'
+      nombre:form.nombre,contacto:form.contacto||'',pais:form.pais||'Paraguay',
+      tarifa_mensual:Number(form.tarifa_mensual),unidades_asic:Number(form.unidades_asic)||1,
+      dia_cobro:Number(form.dia_cobro)||1,fecha_inicio:form.fecha_inicio||new Date().toISOString().slice(0,10),
+      fecha_vence_contrato:form.fecha_vence_contrato||null,costo_energia:Number(form.costo_energia)||0,
+      notas:form.notas||'',estado:'activo'
     }])
     setModal(null);setForm({});fetchData();toast('Cliente agregado ✓','success')
     if(onRefresh)onRefresh()
@@ -125,13 +147,11 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
         fecha_pago:new Date().toISOString().slice(0,10),periodo,estado:'pagado'
       }])
     }
-    // Registrar en finanzas
     await supabase.from('finanzas').insert([{
       tipo:'ingreso',monto:Number(monto)||0,moneda:'USD',
       descripcion:`${tipo==='hosting'?'Hosting':'Energía'}: ${cliente.nombre}`,
       categoria:tipo==='hosting'?'Hosting':'Energía',
-      fecha:new Date().toISOString().slice(0,10),
-      responsable:'Joel',pais:cliente.pais||'Paraguay'
+      fecha:new Date().toISOString().slice(0,10),responsable:'Joel',pais:cliente.pais||'Paraguay'
     }])
     fetchData();toast(`${tipo==='hosting'?'Hosting':'Energía'} marcado como pagado ✓`,'success')
     if(onRefresh)onRefresh()
@@ -145,7 +165,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
 
   const panel={background:'rgba(14,14,22,0.8)',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:12,overflow:'hidden'}
   const panelHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'13px 18px',borderBottom:`1px solid ${C.border}`,background:'rgba(255,255,255,0.015)'}
-  const btn=(t)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600,letterSpacing:'.03em',transition:'all .2s',background:t==='gold'?`linear-gradient(135deg,#d4a843,#e8b84b)`:t==='green'?'rgba(16,185,129,0.12)':t==='ghost'?'rgba(255,255,255,0.06)':'rgba(244,63,94,0.08)',color:t==='gold'?'#000':t==='green'?C.green:t==='ghost'?C.t1:C.red,border:t==='green'?`1px solid rgba(16,185,129,0.25)`:t==='ghost'?`1px solid ${C.border}`:'none'})
+  const btn=(t)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',borderRadius:8,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600,letterSpacing:'.03em',transition:'all .2s',background:t==='gold'?`linear-gradient(135deg,#d4a843,#e8b84b)`:t==='green'?'rgba(16,185,129,0.12)':t==='ghost'?'rgba(255,255,255,0.06)':t==='wa'?'rgba(37,211,102,0.12)':'rgba(244,63,94,0.08)',color:t==='gold'?'#000':t==='green'?C.green:t==='ghost'?C.t1:t==='wa'?'#25D366':C.red,border:t==='green'?`1px solid rgba(16,185,129,0.25)`:t==='ghost'?`1px solid ${C.border}`:t==='wa'?'1px solid rgba(37,211,102,0.3)':'none'})
   const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:8,padding:'10px 13px',color:C.t1,fontFamily:'Inter,sans-serif',fontSize:12,outline:'none',boxSizing:'border-box'}
   const fLabel={display:'block',fontSize:9,letterSpacing:'.15em',textTransform:'uppercase',color:C.t3,marginBottom:6,fontWeight:600}
 
@@ -199,6 +219,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
           const proximo=c.dia_cobro?getProximoCobro(c.dia_cobro):null
           const urgente=diasCobro!==null&&diasCobro<=5
           const vencido=diasCobro!==null&&diasCobro<0
+          const editando=editandoDia===c.id
 
           return(
             <div key={c.id} style={{...panel,border:`1px solid ${vencido&&estadoHosting!=='pagado'?'rgba(244,63,94,0.3)':urgente&&estadoHosting!=='pagado'?'rgba(245,158,11,0.2)':C.border}`}}>
@@ -210,14 +231,38 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <div style={{fontSize:9,color:C.t3,marginTop:2}}>{c.contacto} · {c.pais} · {c.unidades_asic} ASICs</div>
                 </div>
 
-                {/* Estado cobro */}
+                {/* Próximo cobro — editable */}
                 {proximo&&(
                   <div style={{textAlign:'center',padding:'0 12px',borderLeft:`1px solid ${C.border}`}}>
                     <div style={{fontSize:8,color:C.t3,marginBottom:3,textTransform:'uppercase'}}>Próximo cobro</div>
-                    <div style={{...num,fontSize:11,color:vencido?C.red:urgente?C.amber:C.t1}}>{proximo}</div>
-                    <div style={{fontSize:8,marginTop:2,color:vencido?C.red:urgente?C.amber:C.t3}}>
-                      {vencido?`Vencido ${Math.abs(diasCobro)}d`:diasCobro===0?'Hoy':`En ${diasCobro}d`}
-                    </div>
+                    {editando?(
+                      <div style={{display:'flex',alignItems:'center',gap:4}}>
+                        <span style={{fontSize:9,color:C.t3}}>Día</span>
+                        <input
+                          type="number" min="1" max="31"
+                          value={diaTemp}
+                          onChange={e=>setDiaTemp(e.target.value)}
+                          onKeyDown={e=>{if(e.key==='Enter')guardarDia(c);if(e.key==='Escape')setEditandoDia(null)}}
+                          style={{width:40,background:'rgba(255,255,255,0.08)',border:`1px solid ${C.gold}`,borderRadius:4,padding:'3px 5px',color:C.gold2,fontFamily:'monospace',fontSize:12,fontWeight:700,outline:'none',textAlign:'center'}}
+                          autoFocus
+                        />
+                        <button onClick={()=>guardarDia(c)} style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:4,padding:'3px 6px',cursor:'pointer',color:C.green,fontSize:10}}>✓</button>
+                        <button onClick={()=>setEditandoDia(null)} style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,borderRadius:4,padding:'3px 6px',cursor:'pointer',color:C.t3,fontSize:10}}>×</button>
+                      </div>
+                    ):(
+                      <div
+                        onClick={()=>iniciarEditDia(c)}
+                        title="Click para editar día de cobro"
+                        style={{...num,fontSize:11,color:vencido?C.red:urgente?C.amber:C.t1,cursor:'pointer',borderBottom:`1px dashed ${C.t3}`,display:'inline-block'}}
+                      >
+                        {proximo}
+                      </div>
+                    )}
+                    {!editando&&(
+                      <div style={{fontSize:8,marginTop:2,color:vencido?C.red:urgente?C.amber:C.t3}}>
+                        {vencido?`Vencido ${Math.abs(diasCobro)}d`:diasCobro===0?'Hoy':`En ${diasCobro}d`}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -226,6 +271,11 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <div style={{fontSize:8,color:C.t3}}>hosting/mes</div>
                   {c.costo_energia>0&&<div style={{fontSize:9,color:C.t3,marginTop:2}}>{money(c.costo_energia)} energía</div>}
                 </div>
+
+                {/* Botón WhatsApp */}
+                <button style={{...btn('wa'),padding:'6px 10px',fontSize:10}} onClick={()=>abrirWhatsApp(c)} title="Enviar recordatorio por WhatsApp">
+                  📲 WA
+                </button>
 
                 <button style={{...btn('ghost'),padding:'5px 8px',fontSize:9,color:C.red}} onClick={()=>del(c.id)}>🗑</button>
               </div>
@@ -290,12 +340,14 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </div>
 
-              {/* Contrato vencimiento */}
-              {c.fecha_vence_contrato&&(
+              {/* Footer: contrato + notas */}
+              {(c.fecha_vence_contrato||c.notas)&&(
                 <div style={{padding:'8px 16px',borderTop:`1px solid ${C.border}`,background:'rgba(255,255,255,0.01)',display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:9,color:C.t3}}>📄 Contrato vence:</span>
-                  <span style={{...num,fontSize:9,color:daysUntil(c.fecha_vence_contrato)<30?C.amber:C.t2}}>{c.fecha_vence_contrato}</span>
-                  <span style={{fontSize:8,color:C.t3}}>({daysUntil(c.fecha_vence_contrato)}d)</span>
+                  {c.fecha_vence_contrato&&<>
+                    <span style={{fontSize:9,color:C.t3}}>📄 Contrato vence:</span>
+                    <span style={{...num,fontSize:9,color:daysUntil(c.fecha_vence_contrato)<30?C.amber:C.t2}}>{c.fecha_vence_contrato}</span>
+                    <span style={{fontSize:8,color:C.t3}}>({daysUntil(c.fecha_vence_contrato)}d)</span>
+                  </>}
                   {c.notas&&<span style={{marginLeft:8,fontSize:8,color:C.t3,fontStyle:'italic'}}>📝 {c.notas}</span>}
                 </div>
               )}
@@ -319,7 +371,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
             </div>
           ))}
         </div>
-
         <div style={panel}>
           <div style={panelHdr}><span style={{fontSize:9,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>Historial de pagos</span></div>
           {pagos.slice(0,30).map(p=>{
@@ -362,6 +413,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
               <div style={{display:'flex',gap:8,padding:'10px 16px',borderTop:`1px solid ${C.border}`}}>
                 {getEstadoPago(c)!=='pagado'&&<button style={btn('green')} onClick={()=>marcarPagado(c,'hosting')}>✓ Marcar hosting pagado</button>}
                 {c.costo_energia>0&&getEstadoEnergia(c)!=='pagado'&&<button style={{...btn('ghost'),border:`1px solid rgba(245,158,11,0.3)`,color:C.amber}} onClick={()=>marcarPagado(c,'energia')}>✓ Marcar energía pagada</button>}
+                <button style={btn('wa')} onClick={()=>abrirWhatsApp(c)}>📲 Recordatorio WA</button>
               </div>
             </div>
           )
@@ -404,7 +456,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <button style={btn('gold')} onClick={addCliente}>✓ Guardar</button>
                 </div>
               </>}
-
               {modal==='equipo'&&<>
                 <div style={{marginBottom:12}}>
                   <div style={{fontSize:11,color:C.t2,marginBottom:12}}>Asignando equipo a: <strong style={{color:C.t1}}>{selected?.nombre}</strong></div>
