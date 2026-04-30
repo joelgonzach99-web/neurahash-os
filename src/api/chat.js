@@ -1,4 +1,4 @@
-export const config = { runtime: 'edge' }
+export const config = { runtime: 'edge', maxDuration: 25 }
 
 export default async function handler(req) {
   if (req.method === 'OPTIONS') {
