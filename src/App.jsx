@@ -408,16 +408,22 @@ export default function App(){
   async function addEquipo(){
     const modeloFinal=form.modelo==='custom'?form.modelo_custom:form.modelo
     if(!modeloFinal){toast('Ingresá el modelo','error');return}
-    await supabase.from('equipos').insert([{
-      modelo:modeloFinal,
-      hashrate:Number(form.hashrate)||0,
-      temperatura:Number(form.temperatura)||0,
-      estado:form.estado||'activo',
-      numero_serie:form.numero_serie||null,
-      ubicacion:form.ubicacion||'Paraguay',
-      cliente_asignado_id:null
-    }])
-    setModal(null);setForm({});fetchAll();toast('Equipo agregado ✓','success')
+    const cantidad=Number(form.cantidad)||1
+    const rows=[]
+    for(let i=0;i<cantidad;i++){
+      const serial=form.numero_serie?(cantidad>1?`${form.numero_serie}-${String(i+1).padStart(3,'0')}`:form.numero_serie):null
+      rows.push({
+        modelo:modeloFinal,
+        hashrate:Number(form.hashrate)||0,
+        temperatura:Number(form.temperatura)||0,
+        estado:form.estado||'activo',
+        numero_serie:serial,
+        ubicacion:form.ubicacion||'Paraguay',
+        cliente_asignado_id:null
+      })
+    }
+    await supabase.from('equipos').insert(rows)
+    setModal(null);setForm({});fetchAll();toast(`${cantidad} equipo${cantidad>1?'s':''} agregado${cantidad>1?'s':''} ✓`,'success')
   }
   async function addFinanza(){
     if(!form.monto||!form.descripcion){toast('Completá los campos','error');return}
@@ -1169,9 +1175,16 @@ export default function App(){
                   <div><label style={fLabel}>Temperatura (°C)</label><input style={fInput} type="number" placeholder="68" value={form.temperatura||''} onChange={e=>setForm({...form,temperatura:e.target.value})}/></div>
                   <div><label style={fLabel}>Ubicación</label><select style={fInput} value={form.ubicacion||'Paraguay'} onChange={e=>setForm({...form,ubicacion:e.target.value})}><option>Paraguay</option><option>Bolivia</option></select></div>
                 </div>
-                <div style={{marginTop:10}}>
-                  <label style={fLabel}>Número de serie</label>
-                  <input style={fInput} placeholder="Ej: SN2024-001 (opcional)" value={form.numero_serie||''} onChange={e=>setForm({...form,numero_serie:e.target.value})}/>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:10}}>
+                  <div>
+                    <label style={fLabel}>Cantidad de unidades</label>
+                    <input style={fInput} type="number" min="1" max="100" placeholder="1" value={form.cantidad||''} onChange={e=>setForm({...form,cantidad:e.target.value})}/>
+                    <div style={{fontSize:8,color:'#40405a',marginTop:4}}>Si ponés más de 1, se crea una por una con serial automático</div>
+                  </div>
+                  <div>
+                    <label style={fLabel}>Número de serie base (opcional)</label>
+                    <input style={fInput} placeholder="Ej: SN2024 → SN2024-001, 002..." value={form.numero_serie||''} onChange={e=>setForm({...form,numero_serie:e.target.value})}/>
+                  </div>
                 </div>
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:18,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
