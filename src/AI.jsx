@@ -19,7 +19,7 @@ async function callAI(systemPrompt, userMessage, onChunk) {
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 1000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }]
@@ -357,7 +357,7 @@ Respondé siempre en español, de forma concisa y profesional. Si te preguntan s
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-5',
           max_tokens: 800,
           system: systemPrompt,
           messages: [...messages, { role: 'user', content: userMsg }].filter(m => m.role !== 'system')
