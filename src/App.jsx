@@ -408,7 +408,15 @@ export default function App(){
   async function addEquipo(){
     const modeloFinal=form.modelo==='custom'?form.modelo_custom:form.modelo
     if(!modeloFinal){toast('Ingresá el modelo','error');return}
-    await supabase.from('equipos').insert([{modelo:modeloFinal,hashrate:Number(form.hashrate)||0,temperatura:Number(form.temperatura)||0,estado:form.estado||'activo'}])
+    await supabase.from('equipos').insert([{
+      modelo:modeloFinal,
+      hashrate:Number(form.hashrate)||0,
+      temperatura:Number(form.temperatura)||0,
+      estado:form.estado||'activo',
+      numero_serie:form.numero_serie||null,
+      ubicacion:form.ubicacion||'Paraguay',
+      cliente_asignado_id:null
+    }])
     setModal(null);setForm({});fetchAll();toast('Equipo agregado ✓','success')
   }
   async function addFinanza(){
@@ -735,24 +743,108 @@ export default function App(){
 
           {/* ─── EQUIPOS ─── */}
           {page==='equipos'&&<div className="page">
-            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
+            {/* Stock KPIs */}
+            {(()=>{
+              const porModelo=equipos.reduce((acc,e)=>{
+                const k=e.modelo
+                if(!acc[k])acc[k]={modelo:k,hashrate:e.hashrate,total:0,activos:0,libres:0,py:0,bo:0}
+                acc[k].total++
+                if(e.estado==='activo')acc[k].activos++
+                const asignado=clientes.find(c=>c.id===e.cliente_asignado_id)
+                if(!asignado)acc[k].libres++
+                if(e.ubicacion==='Bolivia')acc[k].bo++
+                else acc[k].py++
+                return acc
+              },{})
+              const modelos=Object.values(porModelo)
+              const totalEq=equipos.length
+              const totalActivos=equipos.filter(e=>e.estado==='activo').length
+              const totalLibres=equipos.filter(e=>!e.cliente_asignado_id).length
+              const totalTH=equipos.filter(e=>e.estado!=='inactivo').reduce((a,b)=>a+Number(b.hashrate||0),0)
+              return(<>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+                  {[
+                    {label:'Total Equipos',val:totalEq,color:C.gold,icon:'⛏'},
+                    {label:'Activos',val:totalActivos,color:C.green,icon:'✓'},
+                    {label:'Sin Asignar',val:totalLibres,color:totalLibres>0?C.amber:C.green,icon:'📦'},
+                    {label:'Hashrate Total',val:totalTH+'TH',color:C.blue,icon:'₿'},
+                  ].map(s=>(
+                    <div key={s.label} style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 16px',position:'relative',overflow:'hidden'}}>
+                      <div style={{position:'absolute',top:-20,right:-20,width:60,height:60,borderRadius:'50%',background:s.color,filter:'blur(20px)',opacity:.15}}/>
+                      <div style={{fontSize:8,color:C.t3,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>{s.label}</div>
+                      <div style={{...num,fontSize:20,color:s.color}}>{s.val}</div>
+                    </div>
+                  ))}
+                </div>
+                {modelos.length>0&&<div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(modelos.length,4)},1fr)`,gap:10,marginBottom:14}}>
+                  {modelos.map(m=>{
+                    const pct=Math.round((m.activos/m.total)*100)
+                    const asigPct=Math.round(((m.total-m.libres)/m.total)*100)
+                    return(
+                      <div key={m.modelo} style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,marginBottom:4,color:C.t1}}>{m.modelo}</div>
+                        <div style={{...num,fontSize:9,color:C.t3,marginBottom:10}}>{m.hashrate} TH/s</div>
+                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:9}}>
+                          <span style={{color:C.t3}}>Total</span><span style={{...num,color:C.t1}}>{m.total}</span>
+                        </div>
+                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:9}}>
+                          <span style={{color:C.t3}}>Asignados</span><span style={{...num,color:C.gold2}}>{m.total-m.libres}</span>
+                        </div>
+                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:10,fontSize:9}}>
+                          <span style={{color:C.t3}}>Libres</span><span style={{...num,color:m.libres>0?C.amber:C.green}}>{m.libres}</span>
+                        </div>
+                        <div style={{height:4,background:'rgba(255,255,255,0.06)',borderRadius:2,marginBottom:4}}>
+                          <div style={{height:'100%',width:`${asigPct}%`,background:C.gold,borderRadius:2}}/>
+                        </div>
+                        <div style={{fontSize:8,color:C.t3}}>{asigPct}% asignado</div>
+                        <div style={{display:'flex',gap:6,marginTop:8,fontSize:8}}>
+                          <span style={{padding:'2px 7px',borderRadius:8,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)'}}>🇵🇾 {m.py}</span>
+                          <span style={{padding:'2px 7px',borderRadius:8,background:'rgba(212,168,67,0.1)',color:C.gold2,border:'1px solid rgba(212,168,67,0.2)'}}>🇧🇴 {m.bo}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>}
+              </>)
+            })()}
+
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <span style={{fontSize:9,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>📋 Inventario individual</span>
               <button className="btn-gold" style={btn('gold')} onClick={()=>setModal('equipo')}>+ Agregar equipo</button>
             </div>
-            <div className="eq-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
-              {equipos.map(e=>(
-                <div key={e.id} style={{...panel,padding:14,border:`1px solid ${e.estado==='activo'?'rgba(16,185,129,0.2)':e.estado==='advertencia'?'rgba(245,158,11,0.2)':C.border}`}}>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
-                    <div><div style={{fontSize:12,fontWeight:600}}>{e.modelo}</div><div style={{fontSize:9,color:C.t3,marginTop:2,textTransform:'uppercase'}}>{e.estado}</div></div>
-                    <span style={{width:8,height:8,borderRadius:'50%',background:e.estado==='activo'?C.green:e.estado==='advertencia'?C.amber:C.t3,marginTop:4,animation:e.estado==='activo'?'ledPulse 2s infinite':'none'}}/>
+
+            <div style={panel}>
+              {equipos.map(e=>{
+                const clienteAsig=clientes.find(c=>c.id===e.cliente_asignado_id)
+                return(
+                  <div key={e.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}>
+                    <span style={{width:7,height:7,borderRadius:'50%',flexShrink:0,background:e.estado==='activo'?C.green:e.estado==='advertencia'?C.amber:C.t3,animation:e.estado==='activo'?'ledPulse 2s infinite':'none'}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,fontWeight:600}}>{e.modelo}</div>
+                      <div style={{fontSize:8,color:C.t3,marginTop:2,display:'flex',gap:8}}>
+                        {e.numero_serie&&<span style={{fontFamily:'monospace'}}>SN: {e.numero_serie}</span>}
+                        <span>{e.ubicacion||'Paraguay'}</span>
+                        <span style={{textTransform:'uppercase'}}>{e.estado}</span>
+                      </div>
+                    </div>
+                    <span style={{...num,fontSize:11,color:C.gold2}}>{e.hashrate}TH</span>
+                    {clienteAsig?(
+                      <span style={{fontSize:9,padding:'3px 10px',borderRadius:10,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)',maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{clienteAsig.nombre}</span>
+                    ):(
+                      <span style={{fontSize:9,padding:'3px 10px',borderRadius:10,background:'rgba(245,158,11,0.08)',color:C.amber,border:'1px solid rgba(245,158,11,0.2)'}}>Libre</span>
+                    )}
+                    <select value={e.cliente_asignado_id||''} onChange={async ev=>{
+                      await supabase.from('equipos').update({cliente_asignado_id:ev.target.value||null}).eq('id',e.id)
+                      fetchAll()
+                    }} style={{background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 8px',color:C.t2,fontSize:9,fontFamily:'Inter,sans-serif',cursor:'pointer',maxWidth:120}}>
+                      <option value="">Sin asignar</option>
+                      {clientes.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                    <button style={{...btn('ghost'),padding:'4px 8px',fontSize:9,color:C.red}} onClick={()=>del('equipos',e.id)}>🗑</button>
                   </div>
-                  <div style={{display:'flex',gap:16,marginBottom:12}}>
-                    <div><div style={{fontSize:8,color:C.t3,textTransform:'uppercase',marginBottom:2}}>Hashrate</div><div style={{...num,fontSize:14,color:C.gold2,filter:F}}>{e.hashrate} TH/s</div></div>
-                    <div><div style={{fontSize:8,color:C.t3,textTransform:'uppercase',marginBottom:2}}>Temp</div><div style={{...num,fontSize:14,color:e.temperatura>79?C.red:C.t1}}>{e.temperatura}°C</div></div>
-                  </div>
-                  <button style={{...btn('ghost'),padding:'5px 10px',fontSize:10,color:C.red}} onClick={()=>del('equipos',e.id)}>🗑 Eliminar</button>
-                </div>
-              ))}
-              {!equipos.length&&<div style={{gridColumn:'span 3',padding:40,color:C.t3,textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin equipos registrados</div>}
+                )
+              })}
+              {!equipos.length&&<div style={{padding:40,color:C.t3,textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin equipos registrados</div>}
             </div>
           </div>}
 
@@ -1072,9 +1164,14 @@ export default function App(){
                   </div>
                   <div><label style={fLabel}>Estado</label><select style={fInput} value={form.estado||'activo'} onChange={e=>setForm({...form,estado:e.target.value})}><option value="activo">Activo</option><option value="advertencia">Advertencia</option><option value="inactivo">Inactivo</option></select></div>
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginTop:12}}>
                   <div><label style={fLabel}>Hashrate (TH/s)</label><input style={fInput} type="number" placeholder="200" value={form.hashrate||''} onChange={e=>setForm({...form,hashrate:e.target.value})}/></div>
                   <div><label style={fLabel}>Temperatura (°C)</label><input style={fInput} type="number" placeholder="68" value={form.temperatura||''} onChange={e=>setForm({...form,temperatura:e.target.value})}/></div>
+                  <div><label style={fLabel}>Ubicación</label><select style={fInput} value={form.ubicacion||'Paraguay'} onChange={e=>setForm({...form,ubicacion:e.target.value})}><option>Paraguay</option><option>Bolivia</option></select></div>
+                </div>
+                <div style={{marginTop:10}}>
+                  <label style={fLabel}>Número de serie</label>
+                  <input style={fInput} placeholder="Ej: SN2024-001 (opcional)" value={form.numero_serie||''} onChange={e=>setForm({...form,numero_serie:e.target.value})}/>
                 </div>
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:18,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
