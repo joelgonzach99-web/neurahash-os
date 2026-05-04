@@ -48,16 +48,13 @@ function useMiningData(){
       if(price) setBtcPrice(price)
 
       try{
-        const r = await fetch('https://mempool.space/api/v1/difficulty-adjustment')
-        const d = await r.json()
-        if(d?.currentDifficulty) setDifficulty(d.currentDifficulty)
+        const r = await fetch('https://blockchain.info/q/getdifficulty')
+        const txt = await r.text()
+        const diff = parseFloat(txt)
+        if(diff && diff > 1e12) setDifficulty(diff)
+        else setDifficulty(109521666870163)
       }catch{
-        try{
-          const r = await fetch('https://blockchain.info/q/getdifficulty')
-          const txt = await r.text()
-          const diff = parseFloat(txt)
-          if(diff) setDifficulty(diff)
-        }catch{}
+        setDifficulty(109521666870163)
       }
       setLastUpdate(new Date())
     }catch(e){ console.warn('Mining data fetch error', e) }
