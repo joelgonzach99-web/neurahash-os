@@ -490,10 +490,11 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
           {[
             {label:'Hosting cobrado este mes',val:money(pagos.filter(p=>p.tipo==='hosting'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0)),color:C.green},
             {label:'Energía cobrada este mes',val:money(pagos.filter(p=>p.tipo==='energia'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0)),color:C.amber},
-            {label:'Pendiente de cobro (hosting + energía)',val:money(clientes.reduce((a,c)=>{
-              const{usdMesFee,feePct}=calcClienteFee(c)
+            {label:'Pendiente (hosting + energía)',val:money(clientes.reduce((a,c)=>{
+              const{usdMesFee,feePct,btcMesFee}=calcClienteFee(c)
               const energiaTotal=calcEnergiaTotal(c)
-              const hosting=getEstadoPago(c)!=='pagado'?(feePct>0&&usdMesFee?usdMesFee:Number(c.tarifa_mensual)||0):0
+              const hostingUsd=feePct>0&&usdMesFee?usdMesFee:(feePct>0&&btcMesFee&&btcPrice?btcMesFee*btcPrice:Number(c.tarifa_mensual)||0)
+              const hosting=getEstadoPago(c)!=='pagado'?hostingUsd:0
               const energia=getEstadoEnergia(c)!=='pagado'?energiaTotal:0
               return a+hosting+energia
             },0)),color:C.red},
