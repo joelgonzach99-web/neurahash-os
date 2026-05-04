@@ -130,6 +130,20 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   }
 
   // CÁLCULO PRINCIPAL: suma hashrate de todos sus equipos → BTC/día total → × fee%
+  function calcEnergiaEquipo(hashrate){
+    return Number(hashrate||0) >= 300 ? 163 : 90
+  }
+  function calcEnergiaTotal(cliente){
+    const equiposC = getClienteEquiposArr(cliente.id)
+    return equiposC.reduce((a,e)=>a+calcEnergiaEquipo(Number(e.hashrate||0)),0)
+  }
+  function calcEnergiaEquipo(hashrate){
+    return Number(hashrate||0) >= 300 ? 163 : 90
+  }
+  function calcEnergiaTotal(cliente){
+    const equiposC = getClienteEquiposArr(cliente.id)
+    return equiposC.reduce((a,e)=>a+calcEnergiaEquipo(Number(e.hashrate||0)),0)
+  }
   function calcClienteFee(cliente){
     const equiposC = getClienteEquiposArr(cliente.id)
     const totalTH = equiposC.reduce((a,e)=>a+Number(e.hashrate||0),0)
