@@ -1153,10 +1153,12 @@ export default function App(){
                   <div><label style={fLabel}>Modelo</label>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
                     {[
-                      {label:'S21 Aire',modelo:'Antminer S21',hash:200,icon:'✈'},
-                      {label:'S21 XP Aire',modelo:'Antminer S21 XP',hash:270,icon:'✈'},
-                      {label:'S21+ Hyd 358T',modelo:'Antminer S21+ Hyd 358T',hash:358,icon:'💧'},
-                      {label:'S21+ Hyd 395T',modelo:'Antminer S21+ Hyd 395T',hash:395,icon:'💧'},
+                      {label:'S19j Pro 100T',modelo:'Antminer S19j Pro (100Th)',hash:100,icon:'✈'},
+                      {label:'S21 200T',modelo:'Antminer S21 (200Th)',hash:200,icon:'✈'},
+                      {label:'S21+ Hyd 358T',modelo:'Antminer S21+ Hyd (358Th)',hash:358,icon:'💧'},
+                      {label:'S21+ Hyd 395T',modelo:'Antminer S21+ Hyd (395Th)',hash:395,icon:'💧'},
+                      {label:'S21j XP Hyd 495T',modelo:'Antminer S21j XP Hyd (495Th)',hash:495,icon:'💧'},
+                      {label:'S23 Hyd 580T',modelo:'Antminer S23 Hyd (580Th)',hash:580,icon:'💧'},
                     ].map(m=>(
                       <button key={m.modelo} type="button" onClick={()=>setForm({...form,modelo:m.modelo,hashrate:m.hash})} style={{padding:'8px 10px',borderRadius:8,cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:10,fontWeight:600,textAlign:'left',transition:'all .15s',background:form.modelo===m.modelo?'rgba(212,168,67,0.15)':'rgba(255,255,255,0.04)',border:`1px solid ${form.modelo===m.modelo?'rgba(212,168,67,0.5)':'rgba(255,255,255,0.08)'}`,color:form.modelo===m.modelo?'#f0c060':'#808098'}}>
                         <div style={{fontSize:14,marginBottom:2}}>{m.icon}</div>
