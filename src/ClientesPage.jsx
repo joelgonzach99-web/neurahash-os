@@ -298,6 +298,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
           const urgente=diasCobro!==null&&diasCobro<=5
           const vencido=diasCobro!==null&&diasCobro<0
           const {totalTH,equipCount,btcDiaTotal,feePct,btcDiaFee,btcMesFee,usdMesFee}=calcClienteFee(c)
+          const energiaTotal=calcEnergiaTotal(c)
           const hasFee=feePct>0
 
           return(
