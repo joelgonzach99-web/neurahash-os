@@ -3,7 +3,49 @@ import { supabase } from './supabase'
 import Charts from './Charts'
 import AI from './AI'
 import ClientesPage from './ClientesPage'
-const C={void:'#060608',bg1:'#0a0a0f',card:'#111118',card2:'#161622',glass:'rgba(16,16,28,0.75)',border:'rgba(255,255,255,0.06)',border2:'rgba(255,255,255,0.11)',gold:'#d4a843',gold2:'#f0c060',green:'#10b981',red:'#f43f5e',amber:'#f59e0b',blue:'#6366f1',purple:'#a855f7',t1:'#f0f0f8',t2:'#808098',t3:'#40405a'}
+const C={void:'#000000',bg1:'#0a0a0a',card:'#0a0a0a',card2:'#111111',glass:'rgba(10,10,10,0.9)',border:'rgba(255,255,255,0.08)',border2:'rgba(255,255,255,0.14)',gold:'#d4a843',gold2:'#f0c060',green:'#10b981',red:'#f43f5e',amber:'#f59e0b',blue:'#6366f1',purple:'#a855f7',t1:'#ffffff',t2:'#888888',t3:'#444444'}
+
+function ParticleCanvas(){
+  const ref=useRef(null)
+  useEffect(()=>{
+    const canvas=ref.current; if(!canvas)return
+    const ctx=canvas.getContext('2d')
+    const resize=()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight}
+    resize()
+    const pts=Array.from({length:90},()=>({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.2+.2,dx:(Math.random()-.5)*.25,dy:(Math.random()-.5)*.25,o:Math.random()*.35+.05}))
+    let raf
+    function draw(){
+      ctx.clearRect(0,0,canvas.width,canvas.height)
+      pts.forEach(p=>{
+        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2)
+        ctx.fillStyle=`rgba(255,255,255,${p.o})`;ctx.fill()
+        p.x+=p.dx;p.y+=p.dy
+        if(p.x<0||p.x>canvas.width)p.dx*=-1
+        if(p.y<0||p.y>canvas.height)p.dy*=-1
+      })
+      raf=requestAnimationFrame(draw)
+    }
+    draw()
+    window.addEventListener('resize',resize)
+    return()=>{cancelAnimationFrame(raf);window.removeEventListener('resize',resize)}
+  },[])
+  return <canvas ref={ref} style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0}}/>
+}
+
+function CountUp({to,suffix='',prefix='',duration=1000}){
+  const [v,setV]=useState(0)
+  useEffect(()=>{
+    if(!to||isNaN(Number(to)))return
+    const n=Number(String(to).replace(/[^0-9.]/g,''))
+    if(!n){setV(to);return}
+    let s=0,steps=Math.ceil(duration/16)
+    const inc=n/steps
+    const t=setInterval(()=>{s=Math.min(s+inc,n);setV(s);if(s>=n)clearInterval(t)},16)
+    return()=>clearInterval(t)
+  },[to])
+  const display=typeof to==='string'&&isNaN(Number(to.replace(/[^0-9.]/g,'')))?to:prefix+Math.floor(v).toLocaleString()+suffix
+  return display
+}
 const initials=n=>n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()
 const daysUntil=d=>Math.round((new Date(d)-new Date())/864e5)
 const money=(n,cur='USD')=>{
@@ -558,19 +600,20 @@ export default function App(){
     {id:'ia',label:'IA',icon:'🧠'},
   ]
 
-  const btn=(t)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',borderRadius:8,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600,letterSpacing:'.03em',transition:'all .2s',background:t==='gold'?`linear-gradient(135deg,#d4a843,#e8b84b)`:t==='ghost'?'rgba(255,255,255,0.06)':t==='blue'?'rgba(99,102,241,0.15)':'transparent',color:t==='gold'?'#000':t==='ghost'?C.t1:t==='blue'?C.blue:C.red,boxShadow:t==='gold'?'0 0 20px rgba(212,168,67,0.25)':'none'})
-  const panel={background:'rgba(14,14,22,0.8)',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:12,overflow:'hidden'}
-  const panelHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'13px 18px',borderBottom:`1px solid ${C.border}`,background:'rgba(255,255,255,0.015)'}
-  const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:8,padding:'11px 14px',color:C.t1,fontFamily:'Inter,sans-serif',fontSize:12,outline:'none',boxSizing:'border-box'}
-  const fLabel={display:'block',fontSize:9,letterSpacing:'.15em',textTransform:'uppercase',color:C.t3,marginBottom:7,fontWeight:600}
-  const tag=(c)=>({fontSize:8,padding:'3px 8px',borderRadius:20,textTransform:'uppercase',fontWeight:600,background:c==='urg'?'rgba(244,63,94,0.12)':c==='ops'?'rgba(99,102,241,0.12)':'rgba(212,168,67,0.12)',color:c==='urg'?C.red:c==='ops'?C.blue:C.gold2,border:`1px solid ${c==='urg'?'rgba(244,63,94,0.2)':c==='ops'?'rgba(99,102,241,0.2)':'rgba(212,168,67,0.2)'}`})
+  const btn=(t)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'10px 20px',borderRadius:10,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:12,fontWeight:600,letterSpacing:'.03em',transition:'all .3s',background:t==='gold'?`linear-gradient(135deg,#d4a843,#e8b84b)`:t==='ghost'?'rgba(255,255,255,0.06)':t==='blue'?'rgba(99,102,241,0.15)':'transparent',color:t==='gold'?'#000':t==='ghost'?C.t1:t==='blue'?C.blue:C.red,boxShadow:t==='gold'?'0 0 24px rgba(212,168,67,0.3)':'none'})
+  const panel={background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden',boxShadow:'0 4px 24px rgba(0,0,0,0.4)'}
+  const panelHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'15px 20px',borderBottom:`1px solid ${C.border}`,background:'rgba(255,255,255,0.02)'}
+  const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:10,padding:'12px 14px',color:C.t1,fontFamily:'Inter,sans-serif',fontSize:13,outline:'none',boxSizing:'border-box'}
+  const fLabel={display:'block',fontSize:11,letterSpacing:'.12em',textTransform:'uppercase',color:C.t3,marginBottom:7,fontWeight:600}
+  const tag=(c)=>({fontSize:9,padding:'3px 9px',borderRadius:20,textTransform:'uppercase',fontWeight:600,background:c==='urg'?'rgba(244,63,94,0.12)':c==='ops'?'rgba(99,102,241,0.12)':'rgba(212,168,67,0.12)',color:c==='urg'?C.red:c==='ops'?C.blue:C.gold2,border:`1px solid ${c==='urg'?'rgba(244,63,94,0.2)':c==='ops'?'rgba(99,102,241,0.2)':'rgba(212,168,67,0.2)'}`})
 
-  const filterBtn=(active)=>({...btn(active?'gold':'ghost'),padding:'6px 12px',fontSize:10,border:active?'none':`1px solid ${C.border}`})
+  const filterBtn=(active)=>({...btn(active?'gold':'ghost'),padding:'7px 14px',fontSize:11,border:active?'none':`1px solid ${C.border}`})
 
   if(loading)return(
-    <div style={{display:'flex',width:'100vw',minHeight:'100vh',background:C.void,alignItems:'center',justifyContent:'center',flexDirection:'column',gap:14}}>
-      <div style={{fontFamily:'monospace',fontSize:13,color:C.gold,letterSpacing:'.3em'}}>NEURAHASH OS</div>
-      <div style={{fontSize:10,color:C.t3,letterSpacing:'.2em'}}>CARGANDO...</div>
+    <div style={{display:'flex',width:'100vw',minHeight:'100vh',background:'#000',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>
+      <ParticleCanvas/>
+      <div style={{fontFamily:'monospace',fontSize:18,fontWeight:800,color:C.gold,letterSpacing:'.4em',position:'relative',zIndex:1}}>NEURAHASH OS</div>
+      <div style={{fontSize:11,color:C.t3,letterSpacing:'.3em',position:'relative',zIndex:1}}>CARGANDO...</div>
     </div>
   )
 
@@ -578,21 +621,23 @@ export default function App(){
     <div style={{display:'flex',width:'100vw',minHeight:'100vh',background:C.void,fontFamily:'Inter,system-ui,sans-serif',color:C.t1,position:'relative'}}>
       <style>{`
         *{box-sizing:border-box;}
-        ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+        ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:2px;}
         @keyframes ledPulse{0%,100%{opacity:0.4;}50%{opacity:1;box-shadow:0 0 12px #10b981;}}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
-        .page{animation:fadeUp .3s ease;}
-        .nav-item:hover{background:rgba(255,255,255,0.04)!important;color:#f0f0f8!important;}
-        .stat-card:hover{transform:translateY(-2px)!important;}
-        .btn-gold:hover{box-shadow:0 0 30px rgba(212,168,67,0.4)!important;transform:translateY(-1px)!important;}
-        .client-row:hover{background:rgba(255,255,255,0.025)!important;}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+        @keyframes goldGlow{0%,100%{box-shadow:0 0 20px rgba(212,168,67,0.2);}50%{box-shadow:0 0 40px rgba(212,168,67,0.5);}}
+        .page{animation:fadeUp .35s ease;}
+        .nav-item:hover{background:rgba(255,255,255,0.03)!important;color:#ffffff!important;}
+        .stat-card:hover{transform:translateY(-3px)!important;border-color:rgba(255,255,255,0.14)!important;}
+        .btn-gold:hover{box-shadow:0 0 40px rgba(212,168,67,0.5)!important;transform:translateY(-1px)!important;}
+        .client-row:hover{background:rgba(255,255,255,0.03)!important;}
         .mobile-menu-btn{display:none;}
-        .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99;backdrop-filter:blur(4px);}
-        .tab-btn{background:none;border:none;cursor:pointer;font-family:Inter,sans-serif;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:8px 14px;border-radius:8px;transition:all .15s;}
+        .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99;backdrop-filter:blur(4px);}
+        .tab-btn{background:none;border:none;cursor:pointer;font-family:Inter,sans-serif;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:9px 16px;border-radius:10px;transition:all .3s;}
         .tab-btn.active{background:rgba(212,168,67,0.1);color:#f0c060;}
-        .tab-btn:not(.active){color:#808098;}
-        .tab-btn:hover:not(.active){background:rgba(255,255,255,0.04);color:#f0f0f8;}
+        .tab-btn:not(.active){color:#888888;}
+        .tab-btn:hover:not(.active){background:rgba(255,255,255,0.03);color:#ffffff;}
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.4;}
+        select option{background:#111111;}
         @media(max-width:768px){
           .sidebar{transform:translateX(-100%)!important;}
           .sidebar.open{transform:translateX(0)!important;}
@@ -612,226 +657,225 @@ export default function App(){
         }
       `}</style>
 
-      <div style={{position:'fixed',top:'-20%',left:'15%',width:600,height:600,borderRadius:'50%',background:'radial-gradient(circle,rgba(99,102,241,0.06),transparent 70%)',pointerEvents:'none',zIndex:0}}/>
-      <div style={{position:'fixed',bottom:'-10%',right:'10%',width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(212,168,67,0.05),transparent 70%)',pointerEvents:'none',zIndex:0}}/>
+      <ParticleCanvas/>
 
       {sideOpen&&<div className="sidebar-overlay" onClick={()=>setSideOpen(false)}/>}
 
-      <aside className={`sidebar${sideOpen?' open':''}`} style={{position:'fixed',left:0,top:0,width:220,height:'100vh',background:'linear-gradient(180deg,rgba(10,10,20,0.99),rgba(7,7,14,0.99))',borderRight:`1px solid ${C.border}`,display:'flex',flexDirection:'column',zIndex:100,backdropFilter:'blur(20px)',transition:'transform .3s ease'}}>
-        <div style={{height:1,background:'linear-gradient(90deg,transparent,rgba(212,168,67,0.5),transparent)'}}/>
-        <div style={{overflow:'hidden',borderBottom:`1px solid ${C.border}`}}>
+      <aside className={`sidebar${sideOpen?' open':''}`} style={{position:'fixed',left:0,top:0,width:230,height:'100vh',background:'#000000',borderRight:`1px solid ${C.border}`,display:'flex',flexDirection:'column',zIndex:100,transition:'transform .3s ease'}}>
+        <div style={{height:1,background:'linear-gradient(90deg,transparent,rgba(212,168,67,0.6),transparent)'}}/>
+        <div style={{overflow:'hidden',borderBottom:`1px solid ${C.border}`,padding:'4px 0'}}>
           {logoOk
             ?<img src="/neurahash-logo.png" alt="NeuraHash" style={{width:'100%',display:'block'}} onError={()=>setLogoOk(false)}/>
-            :<div style={{padding:'18px 20px'}}><div style={{fontFamily:'monospace',fontSize:15,fontWeight:800,color:C.gold,letterSpacing:'.1em'}}>NEURAHASH</div><div style={{fontSize:9,color:C.t3,letterSpacing:'.2em',marginTop:2}}>MINING OS</div></div>
+            :<div style={{padding:'22px 22px'}}><div style={{fontFamily:'monospace',fontSize:18,fontWeight:800,color:C.gold,letterSpacing:'.12em'}}>NEURAHASH</div><div style={{fontSize:11,color:C.t3,letterSpacing:'.25em',marginTop:3}}>MINING OS</div></div>
           }
         </div>
-        <nav style={{flex:1,padding:'8px 0',overflowY:'auto'}}>
+        <nav style={{flex:1,padding:'10px 0',overflowY:'auto'}}>
           {nav.map(item=>(
             <div key={item.id}>
-              {item.section&&<div style={{padding:'16px 18px 4px',fontSize:9,letterSpacing:'.3em',color:C.t3,textTransform:'uppercase',fontWeight:600}}>{item.section}</div>}
-              <div className="nav-item" onClick={()=>navigate(item.id)} style={{display:'flex',alignItems:'center',gap:9,padding:'10px 18px',fontSize:11,color:page===item.id?C.gold2:C.t2,cursor:'pointer',background:page===item.id?'rgba(212,168,67,0.07)':'transparent',borderLeft:page===item.id?`2px solid ${C.gold}`:'2px solid transparent',transition:'all .15s',fontWeight:page===item.id?600:400,textTransform:'uppercase',letterSpacing:'.05em',margin:'1px 6px',borderRadius:'0 6px 6px 0'}}>
-                <span style={{fontSize:13,opacity:.8}}>{item.icon}</span>
+              {item.section&&<div style={{padding:'18px 20px 6px',fontSize:10,letterSpacing:'.3em',color:C.t3,textTransform:'uppercase',fontWeight:600}}>{item.section}</div>}
+              <div className="nav-item" onClick={()=>navigate(item.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'14px 20px',fontSize:13,color:page===item.id?C.gold2:C.t2,cursor:'pointer',background:page===item.id?'rgba(212,168,67,0.08)':'transparent',borderLeft:page===item.id?`2px solid ${C.gold}`:'2px solid transparent',transition:'all .3s',fontWeight:page===item.id?700:400,textTransform:'uppercase',letterSpacing:'.05em',margin:'1px 8px',borderRadius:'0 8px 8px 0'}}>
+                <span style={{fontSize:15,opacity:.85}}>{item.icon}</span>
                 {item.label}
-                {item.badge>0&&<span style={{marginLeft:'auto',background:C.red,color:'#fff',fontSize:8,padding:'2px 6px',borderRadius:20,fontWeight:700}}>{item.badge}</span>}
+                {item.badge>0&&<span style={{marginLeft:'auto',background:C.red,color:'#fff',fontSize:9,padding:'2px 7px',borderRadius:20,fontWeight:700}}>{item.badge}</span>}
               </div>
             </div>
           ))}
         </nav>
-        <div style={{padding:'12px 16px',borderTop:`1px solid ${C.border}`}}>
-          <div style={{display:'flex',alignItems:'center',gap:7,padding:'7px 12px',background:'rgba(16,185,129,0.07)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:20}}>
-            <span style={{width:6,height:6,borderRadius:'50%',background:C.green,boxShadow:`0 0 8px ${C.green}`,display:'inline-block',animation:'ledPulse 2s infinite'}}/>
-            <span style={{fontSize:9,color:C.green,fontWeight:600,letterSpacing:'.1em'}}>SISTEMA ACTIVO</span>
+        <div style={{padding:'14px 18px',borderTop:`1px solid ${C.border}`}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 14px',background:'rgba(16,185,129,0.06)',border:'1px solid rgba(16,185,129,0.2)',borderRadius:20}}>
+            <span style={{width:7,height:7,borderRadius:'50%',background:C.green,boxShadow:`0 0 8px ${C.green}`,display:'inline-block',animation:'ledPulse 2s infinite'}}/>
+            <span style={{fontSize:11,color:C.green,fontWeight:600,letterSpacing:'.1em'}}>SISTEMA ACTIVO</span>
           </div>
         </div>
       </aside>
 
-      <div className="main-content" style={{marginLeft:220,flex:1,display:'flex',flexDirection:'column',minWidth:0,position:'relative',zIndex:1}}>
-        <header style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',background:'rgba(6,6,8,0.85)',backdropFilter:'blur(24px)',borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:50}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <button className="mobile-menu-btn" style={{background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border}`,color:C.t1,width:34,height:34,borderRadius:8,cursor:'pointer',fontSize:17,alignItems:'center',justifyContent:'center'}} onClick={()=>setSideOpen(!sideOpen)}>☰</button>
+      <div className="main-content" style={{marginLeft:230,flex:1,display:'flex',flexDirection:'column',minWidth:0,position:'relative',zIndex:1}}>
+        <header style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 22px',background:'rgba(0,0,0,0.92)',backdropFilter:'blur(24px)',borderBottom:`1px solid ${C.border}`,position:'sticky',top:0,zIndex:50}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <button className="mobile-menu-btn" style={{background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border}`,color:C.t1,width:36,height:36,borderRadius:10,cursor:'pointer',fontSize:17,alignItems:'center',justifyContent:'center'}} onClick={()=>setSideOpen(!sideOpen)}>☰</button>
             <div>
-              <div style={{fontFamily:'monospace',fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{({dashboard:'PANEL GENERAL',equipos:'EQUIPOS',clientes:'CLIENTES',contabilidad:'CONTABILIDAD',energia:'ENERGÍA',tareas:'TAREAS',ia:'ASISTENTE IA'})[page]}</div>
-              <div style={{fontSize:8,color:C.t3,marginTop:2,letterSpacing:'.05em'}}>NEURAHASH · PY & BO</div>
+              <div style={{fontFamily:'monospace',fontSize:14,fontWeight:800,letterSpacing:'.1em',color:C.t1}}>{({dashboard:'PANEL GENERAL',equipos:'EQUIPOS',clientes:'CLIENTES',contabilidad:'CONTABILIDAD',energia:'ENERGÍA',tareas:'TAREAS',ia:'ASISTENTE IA'})[page]}</div>
+              <div style={{fontSize:10,color:C.t3,marginTop:2,letterSpacing:'.06em'}}>NEURAHASH · PY & BO</div>
             </div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            {btc&&<div className="header-btc" style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border}`,borderRadius:20}}>
-              <span style={{color:C.gold,fontSize:13}}>₿</span>
-              <div style={{...num,fontSize:11,color:C.gold2,filter:F}}>${btc.usd?.toLocaleString()}</div>
-              <span style={{fontSize:9,padding:'2px 6px',borderRadius:10,background:btc.usd_24h_change>=0?'rgba(16,185,129,0.12)':'rgba(244,63,94,0.12)',color:btc.usd_24h_change>=0?C.green:C.red,fontWeight:600}}>{btc.usd_24h_change>=0?'+':''}{btc.usd_24h_change?.toFixed(2)}%</span>
+            {btc&&<div className="header-btc" style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border}`,borderRadius:20}}>
+              <span style={{color:C.gold,fontSize:15}}>₿</span>
+              <div style={{...num,fontSize:13,color:C.gold2,filter:F}}>${btc.usd?.toLocaleString()}</div>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,background:btc.usd_24h_change>=0?'rgba(16,185,129,0.12)':'rgba(244,63,94,0.12)',color:btc.usd_24h_change>=0?C.green:C.red,fontWeight:600}}>{btc.usd_24h_change>=0?'+':''}{btc.usd_24h_change?.toFixed(2)}%</span>
             </div>}
-            <button style={{...btn('ghost'),padding:'6px 10px',borderRadius:16,border:`1px solid ${C.border}`,fontSize:14}} onClick={()=>setFocus(!focus)}>{focus?'👁':'🔒'}</button>
-            <button onClick={()=>supabase.auth.signOut()} style={{...btn('ghost'),padding:'6px 10px',borderRadius:16,border:`1px solid ${C.border}`,fontSize:10,marginRight:4}}>⏻</button>
-            <button onClick={()=>navigate('energia')} style={{width:34,height:34,background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border}`,borderRadius:8,cursor:'pointer',fontSize:14,color:C.t2,position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-              🔔{alertas.length>0&&<span style={{position:'absolute',top:-4,right:-4,width:15,height:15,background:C.red,borderRadius:'50%',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}}>{alertas.length}</span>}
+            <button style={{...btn('ghost'),padding:'7px 12px',borderRadius:16,border:`1px solid ${C.border}`,fontSize:15}} onClick={()=>setFocus(!focus)}>{focus?'👁':'🔒'}</button>
+            <button onClick={()=>supabase.auth.signOut()} style={{...btn('ghost'),padding:'7px 12px',borderRadius:16,border:`1px solid ${C.border}`,fontSize:11,marginRight:4}}>⏻</button>
+            <button onClick={()=>navigate('energia')} style={{width:36,height:36,background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border}`,borderRadius:10,cursor:'pointer',fontSize:15,color:C.t2,position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              🔔{alertas.length>0&&<span style={{position:'absolute',top:-4,right:-4,width:16,height:16,background:C.red,borderRadius:'50%',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}}>{alertas.length}</span>}
             </button>
           </div>
         </header>
 
-        <div className="content-pad" style={{padding:'16px 18px',flex:1}}>
+        <div className="content-pad" style={{padding:'20px 22px',flex:1}}>
 
           {/* ─── DASHBOARD ─── */}
           {page==='dashboard'&&<div className="page">
-            <div className="stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}}>
+            <div className="stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:18}}>
               {[
-                {label:'Equipos Activos',val:activeEq,sub:`de ${equipos.length} totales`,color:C.green,icon:'⛏',glow:activeEq>=5},
-                {label:'Hashrate Total',val:totalHash+'TH',sub:'combinado',color:C.gold,icon:'₿',glow:totalHash>=1000},
-                {label:'Por Cobrar',val:money(totalPorCobrar),sub:`${vencidasCPC} vencidas`,color:vencidasCPC>0?C.red:C.blue,icon:'💰',glow:false},
-                {label:'Alertas Energía',val:alertas.length,sub:'pendientes',color:C.red,icon:'⚡',glow:false},
+                {label:'Equipos Activos',val:activeEq,suffix:'',sub:`de ${equipos.length} totales`,color:C.green,icon:'⛏',glow:activeEq>=5},
+                {label:'Hashrate Total',val:totalHash,suffix:'TH',sub:'combinado',color:C.gold,icon:'₿',glow:totalHash>=1000},
+                {label:'Por Cobrar',val:totalPorCobrar,prefix:'$',suffix:'',sub:`${vencidasCPC} vencidas`,color:vencidasCPC>0?C.red:C.blue,icon:'💰',glow:false},
+                {label:'Alertas Energía',val:alertas.length,suffix:'',sub:'pendientes',color:C.red,icon:'⚡',glow:false},
               ].map(s=>(
-                <div key={s.label} className="stat-card" style={{background:'linear-gradient(135deg,rgba(22,22,34,0.9),rgba(14,14,20,0.9))',backdropFilter:'blur(20px)',border:`1px solid ${s.glow?s.color:C.border}`,borderRadius:14,padding:'18px 20px',position:'relative',overflow:'hidden',transition:'transform .2s',boxShadow:s.glow?`0 0 24px ${s.color}33`:'none'}}>
-                  <div style={{position:'absolute',top:-20,right:-20,width:90,height:90,borderRadius:'50%',background:s.color,filter:'blur(30px)',opacity:s.glow?.35:.15,pointerEvents:'none'}}/>
-                  <div style={{fontSize:9,letterSpacing:'.12em',color:C.t3,textTransform:'uppercase',fontWeight:600,marginBottom:8}}>{s.label}</div>
-                  <div style={{...num,fontSize:28,color:s.color,filter:F,lineHeight:1}}>{s.val}</div>
-                  <div style={{fontSize:10,color:C.t3,marginTop:6}}>{s.sub}</div>
-                  <div style={{position:'absolute',right:10,bottom:8,fontSize:28,opacity:.08}}>{s.icon}</div>
+                <div key={s.label} className="stat-card" style={{background:C.card,border:`1px solid ${s.glow?s.color:C.border}`,borderRadius:16,padding:'22px 24px',position:'relative',overflow:'hidden',transition:'all .3s',boxShadow:s.glow?`0 0 28px ${s.color}44,0 4px 24px rgba(0,0,0,0.4)`:'0 4px 24px rgba(0,0,0,0.4)'}}>
+                  <div style={{position:'absolute',top:-24,right:-24,width:100,height:100,borderRadius:'50%',background:s.color,filter:'blur(32px)',opacity:s.glow?.3:.12,pointerEvents:'none'}}/>
+                  <div style={{fontSize:11,letterSpacing:'.12em',color:C.t3,textTransform:'uppercase',fontWeight:600,marginBottom:10}}>{s.label}</div>
+                  <div style={{...num,fontSize:32,color:s.color,filter:F,lineHeight:1}}>{F!=='none'?'••••':<CountUp to={s.val} prefix={s.prefix||''} suffix={s.suffix}/>}</div>
+                  <div style={{fontSize:11,color:C.t3,marginTop:8}}>{s.sub}</div>
+                  <div style={{position:'absolute',right:12,bottom:10,fontSize:32,opacity:.07}}>{s.icon}</div>
                 </div>
               ))}
             </div>
 
+            {/* Logros / Badges */}
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:'14px 20px',marginBottom:16,boxShadow:'0 4px 24px rgba(0,0,0,0.4)'}}>
+              <div style={{fontSize:12,color:C.t2,textTransform:'uppercase',letterSpacing:'.12em',fontWeight:700,marginBottom:12}}>🏆 Logros</div>
+              <div style={{display:'flex',gap:10,overflowX:'auto',paddingBottom:4}}>
+                {badges.map(b=>(
+                  <div key={b.id} title={b.desc} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 16px',borderRadius:24,flexShrink:0,cursor:'default',transition:'all .3s',
+                    background:b.locked?'rgba(255,255,255,0.03)':'rgba(212,168,67,0.13)',
+                    border:`1px solid ${b.locked?'rgba(255,255,255,0.07)':'rgba(212,168,67,0.4)'}`,
+                    boxShadow:b.locked?'none':'0 0 16px rgba(212,168,67,0.25)',
+                    opacity:b.locked?.45:1,
+                  }}>
+                    <span style={{fontSize:15,filter:b.locked?'grayscale(1) brightness(.5)':'none'}}>{b.locked?'🔒':b.icon}</span>
+                    <span style={{fontSize:12,fontWeight:700,color:b.locked?C.t3:C.gold2,whiteSpace:'nowrap'}}>{b.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Presupuesto del mes */}
-            {presupuestoMes&&<div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 18px',marginBottom:12}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <span style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>💸 Presupuesto de gastos {mesActual}</span>
-                <span style={{...num,fontSize:12,color:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green}}>{presupuestoPct}% usado</span>
+            {presupuestoMes&&<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:'16px 20px',marginBottom:14,boxShadow:'0 4px 24px rgba(0,0,0,0.4)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <span style={{fontSize:12,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>💸 Presupuesto de gastos {mesActual}</span>
+                <span style={{...num,fontSize:13,color:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green}}>{presupuestoPct}% usado</span>
               </div>
-              <div style={{height:7,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
-                <div style={{height:'100%',width:`${presupuestoPct}%`,background:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green,borderRadius:4,transition:'width .5s ease'}}/>
+              <div style={{height:8,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
+                <div style={{height:'100%',width:`${presupuestoPct}%`,background:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green,borderRadius:4,transition:'width .6s ease'}}/>
               </div>
-              <div style={{display:'flex',justifyContent:'space-between',marginTop:7,fontSize:10,color:C.t3}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:8,fontSize:11,color:C.t3}}>
                 <span>Gastado: <span style={{color:C.t1,fontFamily:'monospace'}}>{money(gastoMes)}</span></span>
                 <span>Presupuesto: <span style={{color:C.t1,fontFamily:'monospace'}}>{money(presupuestoMes.monto)}</span></span>
               </div>
             </div>}
 
             {/* Meta de ingresos del mes */}
-            <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${metaPct>=100?C.green:C.border}`,borderRadius:12,padding:'14px 18px',marginBottom:12,boxShadow:metaPct>=100?`0 0 18px ${C.green}22`:'none'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <span style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>🎯 Meta de ingresos — {mesActual}</span>
+            <div style={{background:C.card,border:`1px solid ${metaPct>=100?C.green:C.border}`,borderRadius:16,padding:'16px 20px',marginBottom:16,boxShadow:metaPct>=100?`0 0 20px ${C.green}22,0 4px 24px rgba(0,0,0,0.4)`:'0 4px 24px rgba(0,0,0,0.4)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <span style={{fontSize:12,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>🎯 Meta de ingresos — {mesActual}</span>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  {metaPct!==null&&<span style={{...num,fontSize:12,color:metaPct>=100?C.green:metaPct>=60?C.amber:C.red}}>{metaPct}%</span>}
-                  <button onClick={()=>{setForm({monto:metaIngreso||''});setModal('metaIngreso')}} style={{fontSize:9,color:'rgba(212,168,67,0.7)',cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}}>
-                    {metaIngreso>0?'Editar meta →':'+ Setear meta'}
+                  {metaPct!==null&&<span style={{...num,fontSize:13,color:metaPct>=100?C.green:metaPct>=60?C.amber:C.red}}>{metaPct}%</span>}
+                  <button onClick={()=>{setForm({monto:metaIngreso||''});setModal('metaIngreso')}} style={{fontSize:11,color:C.gold,cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}}>
+                    {metaIngreso>0?'Editar →':'+ Setear meta'}
                   </button>
                 </div>
               </div>
               {metaIngreso>0?(
                 <>
-                  <div style={{height:7,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
-                    <div style={{height:'100%',width:`${metaPct||0}%`,background:metaPct>=100?C.green:metaPct>=60?C.amber:C.red,borderRadius:4,transition:'width .5s ease'}}/>
+                  <div style={{height:8,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:`${metaPct||0}%`,background:metaPct>=100?C.green:metaPct>=60?C.amber:C.red,borderRadius:4,transition:'width .6s ease'}}/>
                   </div>
-                  <div style={{display:'flex',justifyContent:'space-between',marginTop:7,fontSize:10,color:C.t3}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginTop:8,fontSize:11,color:C.t3}}>
                     <span>Ingresado: <span style={{color:C.green,fontFamily:'monospace'}}>{money(ingresoMes)}</span></span>
                     <span>Meta: <span style={{color:C.t1,fontFamily:'monospace'}}>{money(metaIngreso)}</span></span>
                   </div>
                 </>
               ):(
-                <div style={{fontSize:10,color:C.t3,fontStyle:'italic'}}>Sin meta configurada — hacé click en "+ Setear meta" para definirla</div>
+                <div style={{fontSize:12,color:C.t3,fontStyle:'italic'}}>Sin meta — hacé click en "+ Setear meta" para definirla</div>
               )}
             </div>
 
-            {/* Badges / Logros */}
-            <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 18px',marginBottom:14}}>
-              <div style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:10}}>🏆 Logros</div>
-              <div style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:4}}>
-                {badges.map(b=>(
-                  <div key={b.id} title={b.desc} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',borderRadius:20,flexShrink:0,cursor:'default',transition:'all .2s',
-                    background:b.locked?'rgba(255,255,255,0.03)':'rgba(212,168,67,0.12)',
-                    border:`1px solid ${b.locked?'rgba(255,255,255,0.07)':'rgba(212,168,67,0.35)'}`,
-                    boxShadow:b.locked?'none':'0 0 12px rgba(212,168,67,0.2)',
-                    opacity:b.locked?.5:1,
-                  }}>
-                    <span style={{fontSize:14,filter:b.locked?'grayscale(1) brightness(.6)':'none'}}>{b.locked?'🔒':b.icon}</span>
-                    <span style={{fontSize:11,fontWeight:600,color:b.locked?C.t3:C.gold2,whiteSpace:'nowrap'}}>{b.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="two-col" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+            <div className="two-col" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
               <div style={panel}>
                 <div style={panelHdr}>
-                  <span style={{fontSize:9,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:600}}>⛏ Equipos</span>
-                  <button style={{fontSize:9,color:'rgba(212,168,67,0.6)',cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}} onClick={()=>navigate('equipos')}>Ver todos →</button>
+                  <span style={{fontSize:11,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:700}}>⛏ Equipos</span>
+                  <button style={{fontSize:11,color:C.gold,cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}} onClick={()=>navigate('equipos')}>Ver todos →</button>
                 </div>
                 {equipos.slice(0,5).map(e=>(
-                  <div key={e.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',borderBottom:`1px solid ${C.border}`}}>
+                  <div key={e.id} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderBottom:`1px solid ${C.border}`}}>
                     <span style={{width:7,height:7,borderRadius:'50%',flexShrink:0,background:e.estado==='activo'?C.green:e.estado==='advertencia'?C.amber:C.t3,animation:e.estado==='activo'?'ledPulse 2s infinite':'none'}}/>
-                    <span style={{flex:1,fontSize:11,fontWeight:500}}>{e.modelo}</span>
-                    <span style={{...num,fontSize:10,color:C.gold2,filter:F}}>{e.hashrate}TH</span>
-                    <span style={{fontSize:9,color:e.temperatura>79?C.red:C.t3,width:34,textAlign:'right'}}>{e.temperatura}°C</span>
+                    <span style={{flex:1,fontSize:13,fontWeight:500}}>{e.modelo}</span>
+                    <span style={{...num,fontSize:12,color:C.gold2,filter:F}}>{e.hashrate}TH</span>
+                    <span style={{fontSize:11,color:e.temperatura>79?C.red:C.t3,width:36,textAlign:'right'}}>{e.temperatura}°C</span>
                   </div>
                 ))}
-                {!equipos.length&&<div style={{padding:24,color:C.t3,textAlign:'center',fontSize:11}}>Sin equipos registrados</div>}
+                {!equipos.length&&<div style={{padding:28,color:C.t3,textAlign:'center',fontSize:13}}>Sin equipos registrados</div>}
               </div>
 
               <div style={panel}>
                 <div style={panelHdr}>
-                  <span style={{fontSize:9,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:600}}>📋 Cuentas por Cobrar</span>
-                  <button style={{fontSize:9,color:'rgba(212,168,67,0.6)',cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}} onClick={()=>{navigate('contabilidad');setContabTab('cobrar')}}>Ver →</button>
+                  <span style={{fontSize:11,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:700}}>📋 Cuentas por Cobrar</span>
+                  <button style={{fontSize:11,color:C.gold,cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}} onClick={()=>{navigate('contabilidad');setContabTab('cobrar')}}>Ver →</button>
                 </div>
                 {cuentasPorCobrar.filter(c=>c.estado!=='pagado').slice(0,4).map(cpc=>{
                   const d=daysUntil(cpc.fecha_vence)
                   return(
-                    <div key={cpc.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',borderBottom:`1px solid ${C.border}`}}>
+                    <div key={cpc.id} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderBottom:`1px solid ${C.border}`}}>
                       <span style={{width:6,height:6,borderRadius:'50%',background:d<0?C.red:d<7?C.amber:C.blue,flexShrink:0}}/>
-                      <span style={{flex:1,fontSize:10,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cpc.cliente_nombre}</span>
-                      <span style={{fontSize:8,color:d<0?C.red:C.t3}}>{d<0?`${Math.abs(d)}d venc.`:`${d}d`}</span>
-                      <span style={{...num,fontSize:10,color:C.gold2,filter:F}}>{money(cpc.monto,cpc.moneda||'USD')}</span>
+                      <span style={{flex:1,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cpc.cliente_nombre}</span>
+                      <span style={{fontSize:11,color:d<0?C.red:C.t3}}>{d<0?`${Math.abs(d)}d venc.`:`${d}d`}</span>
+                      <span style={{...num,fontSize:12,color:C.gold2,filter:F}}>{money(cpc.monto,cpc.moneda||'USD')}</span>
                     </div>
                   )
                 })}
-                {!cuentasPorCobrar.filter(c=>c.estado!=='pagado').length&&<div style={{padding:24,color:C.green,textAlign:'center',fontSize:11}}>✓ Todo cobrado</div>}
+                {!cuentasPorCobrar.filter(c=>c.estado!=='pagado').length&&<div style={{padding:28,color:C.green,textAlign:'center',fontSize:13}}>✓ Todo cobrado</div>}
               </div>
             </div>
 
-            <div className="three-col" style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:12}}>
+            <div className="three-col" style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:14}}>
               <div style={panel}>
                 <div style={panelHdr}>
-                  <span style={{fontSize:9,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:600}}>👥 Clientes</span>
-                  <button style={{fontSize:9,color:'rgba(212,168,67,0.6)',cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}} onClick={()=>setModal('cliente')}>+ Nuevo</button>
+                  <span style={{fontSize:11,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:700}}>👥 Clientes</span>
+                  <button style={{fontSize:11,color:C.gold,cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}} onClick={()=>setModal('cliente')}>+ Nuevo</button>
                 </div>
                 {clientes.slice(0,5).map(c=>(
-                  <div key={c.id} className="client-row" onClick={()=>navigate('clientes')} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 14px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',transition:'background .15s'}}>
-                    <div style={{width:26,height:26,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.6),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:'#000',flexShrink:0}}>{initials(c.nombre)}</div>
-                    <span style={{flex:1,fontSize:11,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre}</span>
-                    <span style={{fontSize:8,color:C.t3,flexShrink:0}}>{c.unidades_asic} ASICs</span>
-                    <span style={{...num,fontSize:11,color:C.gold2,marginLeft:8,filter:F,flexShrink:0}}>{money(c.tarifa_mensual)}/mo</span>
+                  <div key={c.id} className="client-row" onClick={()=>navigate('clientes')} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 18px',borderBottom:`1px solid ${C.border}`,cursor:'pointer',transition:'background .3s'}}>
+                    <div style={{width:30,height:30,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.6),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'#000',flexShrink:0}}>{initials(c.nombre)}</div>
+                    <span style={{flex:1,fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre}</span>
+                    <span style={{fontSize:11,color:C.t3,flexShrink:0}}>{c.unidades_asic} ASICs</span>
+                    <span style={{...num,fontSize:12,color:C.gold2,marginLeft:8,filter:F,flexShrink:0}}>{money(c.tarifa_mensual)}/mo</span>
                   </div>
                 ))}
-                {!clientes.length&&<div style={{padding:24,color:C.t3,textAlign:'center',fontSize:11}}>Sin clientes</div>}
+                {!clientes.length&&<div style={{padding:28,color:C.t3,textAlign:'center',fontSize:13}}>Sin clientes</div>}
               </div>
               <div style={panel}>
-                <div style={panelHdr}><span style={{fontSize:9,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:600}}>💰 Finanzas</span></div>
-                <div style={{padding:'0 14px'}}>
+                <div style={panelHdr}><span style={{fontSize:11,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:700}}>💰 Finanzas</span></div>
+                <div style={{padding:'0 18px'}}>
                   {[['Ingresos',money(ing),C.green,false],['Gastos','-'+money(gst),C.red,false],['Neto',money(net),net>=0?C.green:C.red,true]].map(([l,v,c,bold])=>(
-                    <div key={l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:`1px solid ${C.border}`}}>
-                      <span style={{fontSize:9,color:bold?C.t1:C.t2,fontWeight:bold?600:400}}>{l}</span>
-                      <span style={{...num,fontSize:bold?13:10,color:c,filter:F}}>{v}</span>
+                    <div key={l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:`1px solid ${C.border}`}}>
+                      <span style={{fontSize:11,color:bold?C.t1:C.t2,fontWeight:bold?700:400}}>{l}</span>
+                      <span style={{...num,fontSize:bold?14:12,color:c,filter:F}}>{v}</span>
                     </div>
                   ))}
-                  <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:`1px solid ${C.border}`}}>
-                    <span style={{fontSize:9,color:C.t3}}>Allan</span>
-                    <span style={{...num,fontSize:10,color:C.red,filter:F}}>-{money(gastoAllan)}</span>
+                  <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:`1px solid ${C.border}`}}>
+                    <span style={{fontSize:11,color:C.t3}}>Allan</span>
+                    <span style={{...num,fontSize:12,color:C.red,filter:F}}>-{money(gastoAllan)}</span>
                   </div>
-                  <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0'}}>
-                    <span style={{fontSize:9,color:C.t3}}>Joel</span>
-                    <span style={{...num,fontSize:10,color:C.red,filter:F}}>-{money(gastoJoel)}</span>
+                  <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0'}}>
+                    <span style={{fontSize:11,color:C.t3}}>Joel</span>
+                    <span style={{...num,fontSize:12,color:C.red,filter:F}}>-{money(gastoJoel)}</span>
                   </div>
                 </div>
               </div>
               <div style={panel}>
-                <div style={panelHdr}><span style={{fontSize:9,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:600}}>✓ Tareas</span></div>
-                <div style={{padding:'0 14px'}}>
+                <div style={panelHdr}><span style={{fontSize:11,letterSpacing:'.1em',textTransform:'uppercase',color:C.t2,fontWeight:700}}>✓ Tareas</span></div>
+                <div style={{padding:'0 18px'}}>
                   {tareas.slice(0,5).map(t=>(
-                    <div key={t.id} style={{display:'flex',alignItems:'center',gap:7,padding:'8px 0',borderBottom:`1px solid ${C.border}`}}>
-                      <div onClick={()=>toggleTarea(t.id,t.completada)} style={{width:14,height:14,border:`1.5px solid ${t.completada?C.green:C.border2}`,borderRadius:3,cursor:'pointer',background:t.completada?C.green:'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                        {t.completada&&<span style={{fontSize:8,color:'#000',fontWeight:900}}>✓</span>}
+                    <div key={t.id} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 0',borderBottom:`1px solid ${C.border}`}}>
+                      <div onClick={()=>toggleTarea(t.id,t.completada)} style={{width:16,height:16,border:`1.5px solid ${t.completada?C.green:C.border2}`,borderRadius:4,cursor:'pointer',background:t.completada?C.green:'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        {t.completada&&<span style={{fontSize:9,color:'#000',fontWeight:900}}>✓</span>}
                       </div>
-                      <span style={{flex:1,fontSize:9,color:t.completada?C.t3:C.t1,textDecoration:t.completada?'line-through':'none'}}>{t.descripcion}</span>
+                      <span style={{flex:1,fontSize:12,color:t.completada?C.t3:C.t1,textDecoration:t.completada?'line-through':'none'}}>{t.descripcion}</span>
                     </div>
                   ))}
-                  {!tareas.length&&<div style={{padding:16,color:C.t3,textAlign:'center',fontSize:11}}>Sin tareas</div>}
+                  {!tareas.length&&<div style={{padding:20,color:C.t3,textAlign:'center',fontSize:13}}>Sin tareas</div>}
                 </div>
               </div>
             </div>

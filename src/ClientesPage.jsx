@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 
-const C={void:'#060608',bg1:'#0a0a0f',card:'#111118',border:'rgba(255,255,255,0.06)',border2:'rgba(255,255,255,0.11)',gold:'#d4a843',gold2:'#f0c060',green:'#10b981',red:'#f43f5e',amber:'#f59e0b',blue:'#6366f1',purple:'#a855f7',orange:'#f7931a',t1:'#f0f0f8',t2:'#808098',t3:'#40405a'}
+const C={void:'#000000',bg1:'#0a0a0a',card:'#0a0a0a',border:'rgba(255,255,255,0.08)',border2:'rgba(255,255,255,0.14)',gold:'#d4a843',gold2:'#f0c060',green:'#10b981',red:'#f43f5e',amber:'#f59e0b',blue:'#6366f1',purple:'#a855f7',orange:'#f7931a',t1:'#ffffff',t2:'#888888',t3:'#444444'}
 const num={fontFamily:'monospace',fontWeight:700}
 const initials=n=>n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()
 const money=n=>'$'+Number(n||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})
@@ -323,15 +323,16 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     if(onRefresh)onRefresh()
   }
 
-  const panel={background:'rgba(14,14,22,0.8)',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:12,overflow:'hidden'}
-  const panelHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'13px 18px',borderBottom:`1px solid ${C.border}`,background:'rgba(255,255,255,0.015)'}
-  const btn=(t)=>({display:'inline-flex',alignItems:'center',gap:5,padding:'6px 12px',borderRadius:7,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:10,fontWeight:600,letterSpacing:'.03em',transition:'all .2s',
+  const panel={background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:'hidden',boxShadow:'0 4px 24px rgba(0,0,0,0.4)'}
+  const panelHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'15px 20px',borderBottom:`1px solid ${C.border}`,background:'rgba(255,255,255,0.02)'}
+  const btn=(t)=>({display:'inline-flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:10,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:12,fontWeight:600,letterSpacing:'.03em',transition:'all .3s',
     background:t==='gold'?`linear-gradient(135deg,#d4a843,#e8b84b)`:t==='green'?'rgba(16,185,129,0.12)':t==='ghost'?'rgba(255,255,255,0.06)':t==='wa'?'rgba(37,211,102,0.12)':t==='red'?'rgba(244,63,94,0.08)':t==='orange'?'rgba(247,147,26,0.1)':'rgba(255,255,255,0.04)',
     color:t==='gold'?'#000':t==='green'?C.green:t==='ghost'?C.t1:t==='wa'?'#25D366':t==='red'?C.red:t==='orange'?C.orange:C.t2,
-    border:t==='green'?`1px solid rgba(16,185,129,0.25)`:t==='ghost'?`1px solid ${C.border}`:t==='wa'?'1px solid rgba(37,211,102,0.3)':t==='red'?'1px solid rgba(244,63,94,0.2)':t==='orange'?'1px solid rgba(247,147,26,0.25)':'none'
+    border:t==='green'?`1px solid rgba(16,185,129,0.25)`:t==='ghost'?`1px solid ${C.border}`:t==='wa'?'1px solid rgba(37,211,102,0.3)':t==='red'?'1px solid rgba(244,63,94,0.2)':t==='orange'?'1px solid rgba(247,147,26,0.25)':'none',
+    boxShadow:t==='gold'?'0 0 20px rgba(212,168,67,0.25)':'none'
   })
-  const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:8,padding:'10px 13px',color:C.t1,fontFamily:'Inter,sans-serif',fontSize:12,outline:'none',boxSizing:'border-box'}
-  const fLabel={display:'block',fontSize:9,letterSpacing:'.15em',textTransform:'uppercase',color:C.t3,marginBottom:6,fontWeight:600}
+  const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:10,padding:'12px 14px',color:C.t1,fontFamily:'Inter,sans-serif',fontSize:13,outline:'none',boxSizing:'border-box'}
+  const fLabel={display:'block',fontSize:11,letterSpacing:'.12em',textTransform:'uppercase',color:C.t3,marginBottom:7,fontWeight:600}
 
   const SelectPaisCliente=({val,onChange})=>(
     <select style={fInput} value={val||'Paraguay'} onChange={onChange}>
