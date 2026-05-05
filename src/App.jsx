@@ -325,6 +325,7 @@ export default function App(){
   const[sideOpen,setSideOpen]=useState(false)
   const[contabFilter,setContabFilter]=useState({tipo:'all',responsable:'all',moneda:'all',periodo:'all'})
   const[contabTab,setContabTab]=useState('movimientos')
+  const[confirmDel,setConfirmDel]=useState(null) // {table,id,desc}
 
   useEffect(()=>{fetchAll()},[])
   useEffect(()=>{fetchBTC();const t=setInterval(fetchBTC,60000);return()=>clearInterval(t)},[])
@@ -1460,7 +1461,20 @@ export default function App(){
         </div>
       )}
 
-      <div style={{position:'fixed',bottom:18,right:14,zIndex:300,display:'flex',flexDirection:'column',gap:7}}>
+      {confirmDel&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)'}}>
+          <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:'1px solid rgba(255,255,255,0.15)',borderRadius:14,padding:'24px 28px',maxWidth:340,width:'90%',fontFamily:'Inter,sans-serif'}}>
+            <div style={{fontSize:14,fontWeight:700,color:'#f0f0f8',marginBottom:8}}>¿Eliminar registro?</div>
+            <div style={{fontSize:11,color:'#808098',marginBottom:20,wordBreak:'break-word'}}>"{confirmDel.desc}"</div>
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button onClick={()=>setConfirmDel(null)} style={{padding:'8px 16px',borderRadius:7,border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.06)',color:'#f0f0f8',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11}}>Cancelar</button>
+              <button onClick={confirmarDel} style={{padding:'8px 16px',borderRadius:7,border:'none',background:'#f43f5e',color:'#fff',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600}}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+            <div style={{position:'fixed',bottom:18,right:14,zIndex:300,display:'flex',flexDirection:'column',gap:7}}>
         {toasts.map(t=>(
           <div key={t.id} style={{background:'rgba(14,14,22,0.95)',backdropFilter:'blur(20px)',border:`1px solid ${C.border2}`,borderLeft:`3px solid ${t.type==='success'?C.green:t.type==='error'?C.red:C.gold}`,borderRadius:10,padding:'10px 14px',fontSize:11,fontWeight:500,color:C.t1,display:'flex',alignItems:'center',gap:8,minWidth:200,maxWidth:'88vw',boxShadow:'0 8px 32px rgba(0,0,0,0.5)'}}>
             <span>{t.type==='success'?'✓':t.type==='error'?'✕':'ℹ'}</span>{t.msg}
