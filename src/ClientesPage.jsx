@@ -252,7 +252,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     if(onRefresh)onRefresh()
   }
 
-  async function del(id){
+  async function del(id,nombre){
+    if(!window.confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return
     await supabase.from('clientes').delete().eq('id',id)
     fetchData();toast('Cliente eliminado','info')
     if(onRefresh)onRefresh()
@@ -360,7 +361,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     {energiaTotal>0&&<div style={{fontSize:10,color:C.amber,marginTop:3}}>⚡ {money(energiaTotal)}/mes energía</div>}
                   </div>
                   <button style={{...btn('ghost'),padding:'5px 9px',flexShrink:0}} onClick={()=>iniciarEdicion(c)}>✏️</button>
-                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id)}>🗑</button>
+                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id,c.nombre)}>🗑</button>
                 </div>
 
                 {/* Selector de fee % */}
