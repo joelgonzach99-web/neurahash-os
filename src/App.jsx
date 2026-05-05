@@ -323,7 +323,7 @@ export default function App(){
   const[toasts,setToasts]=useState([])
   const[logoOk,setLogoOk]=useState(true)
   const[sideOpen,setSideOpen]=useState(false)
-  const[contabFilter,setContabFilter]=useState({tipo:'all',responsable:'all',moneda:'all',periodo:'all'})
+  const[contabFilter,setContabFilter]=useState({tipo:'all',responsable:'all',periodo:'all'})
   const[contabTab,setContabTab]=useState('movimientos')
   const[confirmDel,setConfirmDel]=useState(null) // {table,id,desc}
   const[metaIngreso,setMetaIngreso]=useState(()=>{try{return Number(localStorage.getItem('nh_meta_ingreso'))||0}catch{return 0}})
@@ -393,20 +393,22 @@ export default function App(){
   // Badges / logros
   const totalEqActivos=equipos.filter(e=>e.estado==='activo').length
   const eqAsignados=equipos.filter(e=>e.estado==='activo'&&e.cliente_asignado_id).length
+  const paisesDistintos=new Set(clientes.map(c=>c.pais).filter(Boolean)).size
   const badges=[
-    {id:'primer_cliente',icon:'🏆',name:'Primer Cliente',desc:'Registraste tu primer cliente',locked:clientes.length<1},
-    {id:'rookie',icon:'⛏',name:'Mining Rookie',desc:'100+ TH de hashrate total',locked:totalHash<100},
-    {id:'pro',icon:'🔥',name:'Mining Pro',desc:'1,000+ TH de hashrate total',locked:totalHash<1000},
-    {id:'elite',icon:'💎',name:'Mining Elite',desc:'10,000+ TH de hashrate total',locked:totalHash<10000},
-    {id:'full_house',icon:'🏭',name:'Full House',desc:'Todos los equipos asignados a clientes',locked:totalEqActivos===0||eqAsignados<totalEqActivos},
-    {id:'cobrador',icon:'💰',name:'Cobrador Elite',desc:'Todas las cuentas del mes cobradas',locked:cuentasPorCobrar.length===0||cuentasPorCobrar.some(c=>c.estado!=='pagado')},
+    {id:'primer_equipo',icon:'⛏',name:'Primer Equipo',desc:'1+ equipo registrado',locked:equipos.length<1},
+    {id:'primer_cliente',icon:'👥',name:'Primer Cliente',desc:'1+ cliente registrado',locked:clientes.length<1},
+    {id:'th100',icon:'⚡',name:'100 TH',desc:'100+ TH de hashrate',locked:totalHash<100},
+    {id:'th1000',icon:'🚀',name:'1,000 TH',desc:'1,000+ TH de hashrate',locked:totalHash<1000},
+    {id:'th10000',icon:'💎',name:'10,000 TH',desc:'10,000+ TH de hashrate',locked:totalHash<10000},
+    {id:'full_house',icon:'🏭',name:'Full House',desc:'Todos los equipos asignados',locked:totalEqActivos===0||eqAsignados<totalEqActivos},
+    {id:'cobrador',icon:'💰',name:'Cobrador',desc:'Todo el hosting del mes cobrado',locked:clientes.length===0||cuentasPorCobrar.some(c=>c.estado!=='pagado')},
+    {id:'multi_pais',icon:'🌎',name:'Multi-País',desc:'Clientes en 2+ países',locked:paisesDistintos<2},
   ]
 
   // Filtered finanzas
   const finanzasFiltradas=finanzas.filter(f=>{
     if(contabFilter.tipo!=='all'&&f.tipo!==contabFilter.tipo)return false
     if(contabFilter.responsable!=='all'&&f.responsable!==contabFilter.responsable)return false
-    if(contabFilter.moneda!=='all'&&(f.moneda||'USD')!==contabFilter.moneda)return false
     if(contabFilter.periodo!=='all'){
       const hoy=new Date()
       const fecha=new Date(f.fecha)
@@ -729,17 +731,18 @@ export default function App(){
             </div>
 
             {/* Badges / Logros */}
-            <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 18px',marginBottom:14}}>
-              <div style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:12}}>🏅 Logros</div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+            <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 18px',marginBottom:14}}>
+              <div style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:10}}>🏆 Logros</div>
+              <div style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:4}}>
                 {badges.map(b=>(
-                  <div key={b.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,background:b.locked?'rgba(255,255,255,0.02)':'rgba(212,168,67,0.07)',border:`1px solid ${b.locked?'rgba(255,255,255,0.05)':'rgba(212,168,67,0.25)'}`,opacity:b.locked?.45:1,transition:'all .2s'}}>
-                    <span style={{fontSize:22,filter:b.locked?'grayscale(1)':'none',flexShrink:0}}>{b.icon}</span>
-                    <div style={{minWidth:0}}>
-                      <div style={{fontSize:10,fontWeight:700,color:b.locked?C.t3:C.gold2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{b.name}</div>
-                      <div style={{fontSize:8,color:C.t3,marginTop:2,lineHeight:1.3}}>{b.desc}</div>
-                      {!b.locked&&<div style={{fontSize:8,color:C.green,marginTop:3,fontWeight:600}}>✓ Desbloqueado</div>}
-                    </div>
+                  <div key={b.id} title={b.desc} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',borderRadius:20,flexShrink:0,cursor:'default',transition:'all .2s',
+                    background:b.locked?'rgba(255,255,255,0.03)':'rgba(212,168,67,0.12)',
+                    border:`1px solid ${b.locked?'rgba(255,255,255,0.07)':'rgba(212,168,67,0.35)'}`,
+                    boxShadow:b.locked?'none':'0 0 12px rgba(212,168,67,0.2)',
+                    opacity:b.locked?.5:1,
+                  }}>
+                    <span style={{fontSize:14,filter:b.locked?'grayscale(1) brightness(.6)':'none'}}>{b.locked?'🔒':b.icon}</span>
+                    <span style={{fontSize:11,fontWeight:600,color:b.locked?C.t3:C.gold2,whiteSpace:'nowrap'}}>{b.name}</span>
                   </div>
                 ))}
               </div>
@@ -1180,33 +1183,17 @@ export default function App(){
 
             {/* Movimientos Tab */}
             {contabTab==='movimientos'&&<>
-              <div className="contab-filters" style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
-                <div style={{display:'flex',gap:4}}>
-                  {['all','ingreso','gasto'].map(t=>(
-                    <button key={t} style={filterBtn(contabFilter.tipo===t)} onClick={()=>setContabFilter(f=>({...f,tipo:t}))}>
-                      {t==='all'?'Todos':t==='ingreso'?'Ingresos':'Gastos'}
-                    </button>
-                  ))}
-                </div>
-                <div style={{display:'flex',gap:4}}>
-                  {['all','Joel','Allan'].map(r=>(
-                    <button key={r} style={filterBtn(contabFilter.responsable===r)} onClick={()=>setContabFilter(f=>({...f,responsable:r}))}>
-                      {r==='all'?'Todos':r}
-                    </button>
-                  ))}
-                </div>
-                <div style={{display:'flex',gap:4}}>
-                  {['all','USD','PYG','BOB'].map(m=>(
-                    <button key={m} style={filterBtn(contabFilter.moneda===m)} onClick={()=>setContabFilter(f=>({...f,moneda:m}))}>
-                      {m==='all'?'Monedas':m}
-                    </button>
-                  ))}
-                </div>
-                <div style={{display:'flex',gap:4}}>
-                  {[['all','Todo'],['mes','Este mes'],['30d','30 días'],['7d','7 días']].map(([v,l])=>(
-                    <button key={v} style={filterBtn(contabFilter.periodo===v)} onClick={()=>setContabFilter(f=>({...f,periodo:v}))}>{l}</button>
-                  ))}
-                </div>
+              <div className="contab-filters" style={{display:'flex',gap:8,marginBottom:12,alignItems:'center'}}>
+                {[
+                  {key:'tipo',opts:[['all','Todos'],['ingreso','Ingresos'],['gasto','Gastos']]},
+                  {key:'responsable',opts:[['all','Responsable'],['Joel','Joel'],['Allan','Allan']]},
+                  {key:'periodo',opts:[['all','Todo el tiempo'],['mes','Este mes'],['30d','Últimos 30d'],['7d','Últimos 7d']]},
+                ].map(({key,opts})=>(
+                  <select key={key} value={contabFilter[key]} onChange={e=>setContabFilter(f=>({...f,[key]:e.target.value}))}
+                    style={{background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border2}`,borderRadius:7,padding:'6px 10px',color:contabFilter[key]!=='all'?C.gold2:C.t2,fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:500,cursor:'pointer',outline:'none'}}>
+                    {opts.map(([v,l])=><option key={v} value={v} style={{background:'#111118'}}>{l}</option>)}
+                  </select>
+                ))}
                 <div style={{marginLeft:'auto',display:'flex',gap:8}}>
                   <button style={{...btn('blue'),padding:'7px 12px',border:`1px solid rgba(99,102,241,0.3)`}} onClick={exportCSV}>⬇ CSV</button>
                   <button className="btn-gold" style={btn('gold')} onClick={()=>setModal('finanza')}>+ Movimiento</button>
