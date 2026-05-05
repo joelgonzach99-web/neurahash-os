@@ -1148,7 +1148,7 @@ export default function App(){
                     <span style={{...num,fontSize:11,width:90,textAlign:'right',color:f.tipo==='ingreso'?C.green:C.red,filter:F,flexShrink:0}}>
                       {f.tipo==='ingreso'?'+':'-'}{money(f.monto,f.moneda||'USD')}
                     </span>
-                    <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.t2}} onClick={()=>{setForm({...f});setModal('editFinanza')}}>✏️</button>
+                    <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.t2}} onClick={()=>{setForm({id:f.id,tipo:f.tipo,monto:String(f.monto),moneda:f.moneda||'USD',descripcion:f.descripcion,categoria:f.categoria||'Otro',fecha:f.fecha,responsable:f.responsable||'Joel',pais:f.pais||'Paraguay',notas:f.notas||''});setModal('editFinanza')}}>✏️</button>
                     <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.red}} onClick={()=>del('finanzas',f.id,f.descripcion)}>🗑</button>
                   </div>
                 ))}
