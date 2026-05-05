@@ -84,6 +84,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   const[editandoDia,setEditandoDia]=useState(null)
   const[diaTemp,setDiaTemp]=useState('')
   const[feePcts,setFeePcts]=useState({})
+  const[editando,setEditando]=useState(null)
+  const[editForm,setEditForm]=useState({})
 
   const { btcPrice, difficulty, lastUpdate, loading: miningLoading, calcBtcDay, refetch } = useMiningData()
 
@@ -220,6 +222,36 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     if(onRefresh)onRefresh()
   }
 
+  function iniciarEdicion(cliente){
+    setEditando(cliente.id)
+    setEditForm({
+      nombre:cliente.nombre,
+      contacto:cliente.contacto||'',
+      pais:cliente.pais||'Paraguay',
+      dia_cobro:cliente.dia_cobro||1,
+      fecha_inicio:cliente.fecha_inicio||'',
+      fecha_vence_contrato:cliente.fecha_vence_contrato||'',
+      notas:cliente.notas||''
+    })
+    setModal('editar')
+  }
+
+  async function guardarEdicion(){
+    if(!editForm.nombre){toast('Nombre requerido','error');return}
+    await supabase.from('clientes').update({
+      nombre:editForm.nombre,
+      contacto:editForm.contacto||'',
+      pais:editForm.pais||'Paraguay',
+      dia_cobro:Number(editForm.dia_cobro)||1,
+      fecha_inicio:editForm.fecha_inicio||null,
+      fecha_vence_contrato:editForm.fecha_vence_contrato||null,
+      notas:editForm.notas||''
+    }).eq('id',editando)
+    setModal(null);setEditando(null);setEditForm({})
+    fetchData();toast('Cliente actualizado ✓','success')
+    if(onRefresh)onRefresh()
+  }
+
   async function del(id){
     await supabase.from('clientes').delete().eq('id',id)
     fetchData();toast('Cliente eliminado','info')
@@ -327,6 +359,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     )}
                     {energiaTotal>0&&<div style={{fontSize:10,color:C.amber,marginTop:3}}>⚡ {money(energiaTotal)}/mes energía</div>}
                   </div>
+                  <button style={{...btn('ghost'),padding:'5px 9px',flexShrink:0}} onClick={()=>iniciarEdicion(c)}>✏️</button>
                   <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id)}>🗑</button>
                 </div>
 
@@ -556,7 +589,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',padding:16}} onClick={e=>{if(e.target===e.currentTarget){setModal(null);setForm({});setSelected(null)}}}>
           <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:`1px solid ${C.border2}`,borderRadius:16,width:'100%',maxWidth:500,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.7)'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
-              <div style={{fontFamily:'monospace',fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{modal==='cliente'?'NUEVO CLIENTE':'ASIGNAR EQUIPO'}</div>
+              <div style={{fontFamily:'monospace',fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{modal==='cliente'?'NUEVO CLIENTE':modal==='editar'?'EDITAR CLIENTE':'ASIGNAR EQUIPO'}</div>
               <button style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,color:C.t2,width:30,height:30,borderRadius:6,cursor:'pointer',fontSize:17,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>{setModal(null);setForm({});setSelected(null)}}>×</button>
             </div>
             <div style={{padding:20}}>
@@ -582,6 +615,40 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
                   <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={addCliente}>✓ Guardar</button>
+                </div>
+              </>}
+              {modal==='editar'&&<>
+                <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} value={editForm.nombre||''} onChange={e=>setEditForm({...editForm,nombre:e.target.value})}/></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                  <div><label style={fLabel}>Contacto / WhatsApp</label><input style={fInput} value={editForm.contacto||''} onChange={e=>setEditForm({...editForm,contacto:e.target.value})}/></div>
+                  <div><label style={fLabel}>País</label><select style={fInput} value={editForm.pais||'Paraguay'} onChange={e=>setEditForm({...editForm,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Estados Unidos</option><option>Otro</option></select></div>
+                </div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" value={editForm.dia_cobro||''} onChange={e=>setEditForm({...editForm,dia_cobro:e.target.value})}/></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                  <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={editForm.fecha_inicio||''} onChange={e=>setEditForm({...editForm,fecha_inicio:e.target.value})}/></div>
+                  <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={editForm.fecha_vence_contrato||''} onChange={e=>setEditForm({...editForm,fecha_vence_contrato:e.target.value})}/></div>
+                </div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={editForm.notas||''} onChange={e=>setEditForm({...editForm,notas:e.target.value})}/></div>
+                <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
+                  <button style={btn('ghost')} onClick={()=>{setModal(null);setEditando(null);setEditForm({})}}>Cancelar</button>
+                  <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={guardarEdicion}>✓ Guardar cambios</button>
+                </div>
+              </>}
+              {modal==='editar'&&<>
+                <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} value={editForm.nombre||''} onChange={e=>setEditForm({...editForm,nombre:e.target.value})}/></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                  <div><label style={fLabel}>Contacto / WhatsApp</label><input style={fInput} value={editForm.contacto||''} onChange={e=>setEditForm({...editForm,contacto:e.target.value})}/></div>
+                  <div><label style={fLabel}>País</label><select style={fInput} value={editForm.pais||'Paraguay'} onChange={e=>setEditForm({...editForm,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Estados Unidos</option><option>Otro</option></select></div>
+                </div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" value={editForm.dia_cobro||''} onChange={e=>setEditForm({...editForm,dia_cobro:e.target.value})}/></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                  <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={editForm.fecha_inicio||''} onChange={e=>setEditForm({...editForm,fecha_inicio:e.target.value})}/></div>
+                  <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={editForm.fecha_vence_contrato||''} onChange={e=>setEditForm({...editForm,fecha_vence_contrato:e.target.value})}/></div>
+                </div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={editForm.notas||''} onChange={e=>setEditForm({...editForm,notas:e.target.value})}/></div>
+                <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
+                  <button style={btn('ghost')} onClick={()=>{setModal(null);setEditando(null);setEditForm({})}}>Cancelar</button>
+                  <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={guardarEdicion}>✓ Guardar cambios</button>
                 </div>
               </>}
               {modal==='equipo'&&<>
