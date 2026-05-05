@@ -749,110 +749,278 @@ export default function App(){
 
           {/* ─── EQUIPOS ─── */}
           {page==='equipos'&&<div className="page">
-            {/* Stock KPIs */}
+
+            {/* ══════════════════════════════════════════
+                SECCIÓN 1: KPIs GENERALES
+            ══════════════════════════════════════════ */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}}>
+              {(()=>{
+                const totalEq=equipos.length
+                const totalActivos=equipos.filter(e=>e.estado==='activo').length
+                const asignadosIds=new Set(equipos.filter(e=>e.cliente_asignado_id).map(e=>e.id))
+                const totalAsignados=asignadosIds.size
+                const totalLibres=totalEq-totalAsignados
+                const totalTH=equipos.filter(e=>e.estado!=='inactivo').reduce((a,b)=>a+Number(b.hashrate||0),0)
+                const pctOcupacion=totalEq>0?Math.round((totalAsignados/totalEq)*100):0
+                return[
+                  {label:'Total Equipos',val:totalEq,sub:`${totalActivos} activos`,color:C.gold,icon:'⛏'},
+                  {label:'Asignados',val:totalAsignados,sub:`${pctOcupacion}% del stock`,color:C.blue,icon:'👥'},
+                  {label:'Disponibles',val:totalLibres,sub:'libres para asignar',color:totalLibres>0?C.amber:C.green,icon:'📦'},
+                  {label:'Hashrate Total',val:totalTH+'TH',sub:'en operación',color:C.green,icon:'₿'},
+                ].map(s=>(
+                  <div key={s.label} style={{background:'linear-gradient(135deg,rgba(22,22,34,0.95),rgba(14,14,20,0.95))',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:14,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
+                    <div style={{position:'absolute',top:-20,right:-20,width:60,height:60,borderRadius:'50%',background:s.color,filter:'blur(22px)',opacity:.2,pointerEvents:'none'}}/>
+                    <div style={{fontSize:8,letterSpacing:'.12em',color:C.t3,textTransform:'uppercase',fontWeight:600,marginBottom:8}}>{s.label}</div>
+                    <div style={{...num,fontSize:22,color:s.color}}>{s.val}</div>
+                    <div style={{fontSize:9,color:C.t3,marginTop:4}}>{s.sub}</div>
+                    <div style={{position:'absolute',right:10,bottom:8,fontSize:22,opacity:.06}}>{s.icon}</div>
+                  </div>
+                ))
+              })()}
+            </div>
+
+            {/* ══════════════════════════════════════════
+                SECCIÓN 2: STOCK POR MODELO
+            ══════════════════════════════════════════ */}
             {(()=>{
               const porModelo=equipos.reduce((acc,e)=>{
-                const k=e.modelo
-                if(!acc[k])acc[k]={modelo:k,hashrate:e.hashrate,total:0,activos:0,libres:0,py:0,bo:0}
+                const k=`${e.modelo}||${e.hashrate}`
+                if(!acc[k])acc[k]={modelo:e.modelo,hashrate:e.hashrate,total:0,activos:0,asignados:0,py:0,bo:0,energiaMes:0}
                 acc[k].total++
                 if(e.estado==='activo')acc[k].activos++
-                const asignado=clientes.find(c=>c.id===e.cliente_asignado_id)
-                if(!asignado)acc[k].libres++
-                if(e.ubicacion==='Bolivia')acc[k].bo++
-                else acc[k].py++
+                if(e.cliente_asignado_id)acc[k].asignados++
+                if(e.ubicacion==='Bolivia')acc[k].bo++; else acc[k].py++
+                acc[k].energiaMes=(Number(e.hashrate||0)>=300?163:90)
                 return acc
               },{})
               const modelos=Object.values(porModelo)
-              const totalEq=equipos.length
-              const totalActivos=equipos.filter(e=>e.estado==='activo').length
-              const totalLibres=equipos.filter(e=>!e.cliente_asignado_id).length
-              const totalTH=equipos.filter(e=>e.estado!=='inactivo').reduce((a,b)=>a+Number(b.hashrate||0),0)
-              return(<>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
-                  {[
-                    {label:'Total Equipos',val:totalEq,color:C.gold,icon:'⛏'},
-                    {label:'Activos',val:totalActivos,color:C.green,icon:'✓'},
-                    {label:'Sin Asignar',val:totalLibres,color:totalLibres>0?C.amber:C.green,icon:'📦'},
-                    {label:'Hashrate Total',val:totalTH+'TH',color:C.blue,icon:'₿'},
-                  ].map(s=>(
-                    <div key={s.label} style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 16px',position:'relative',overflow:'hidden'}}>
-                      <div style={{position:'absolute',top:-20,right:-20,width:60,height:60,borderRadius:'50%',background:s.color,filter:'blur(20px)',opacity:.15}}/>
-                      <div style={{fontSize:8,color:C.t3,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>{s.label}</div>
-                      <div style={{...num,fontSize:20,color:s.color}}>{s.val}</div>
-                    </div>
-                  ))}
+              if(!modelos.length)return null
+              return(
+                <div style={{marginBottom:16}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                    <div style={{width:3,height:18,background:`linear-gradient(${C.gold},${C.gold2})`,borderRadius:2}}/>
+                    <span style={{fontSize:11,fontWeight:700,color:C.t1,letterSpacing:'.08em',textTransform:'uppercase'}}>📊 Stock por Modelo</span>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(modelos.length,3)},1fr)`,gap:12}}>
+                    {modelos.map(m=>{
+                      const libres=m.total-m.asignados
+                      const pct=m.total>0?Math.round((m.asignados/m.total)*100):0
+                      const barColor=pct>=90?C.green:pct>=50?C.blue:C.amber
+                      const esHydro=Number(m.hashrate||0)>=300
+                      return(
+                        <div key={m.modelo} style={{background:'rgba(14,14,22,0.85)',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:14,padding:'16px 18px',position:'relative',overflow:'hidden'}}>
+                          <div style={{position:'absolute',top:0,right:0,padding:'4px 10px',background:esHydro?'rgba(99,102,241,0.1)':'rgba(16,185,129,0.08)',borderBottomLeftRadius:10,border:`1px solid ${esHydro?'rgba(99,102,241,0.2)':'rgba(16,185,129,0.15)'}`,fontSize:8,fontWeight:700,color:esHydro?C.blue:C.green,letterSpacing:'.05em'}}>
+                            {esHydro?'💧 HYDRO':'✈ AIRE'}
+                          </div>
+                          <div style={{fontSize:12,fontWeight:700,color:C.t1,marginBottom:4,paddingRight:60}}>{m.modelo}</div>
+                          <div style={{...num,fontSize:10,color:C.t3,marginBottom:14}}>{m.hashrate} TH/s · ⚡ ${m.energiaMes}/mes</div>
+
+                          {/* Stats grid */}
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
+                            {[
+                              {label:'Total',val:m.total,color:C.t1},
+                              {label:'Asignados',val:m.asignados,color:C.gold2},
+                              {label:'Libres',val:libres,color:libres>0?C.amber:C.green},
+                            ].map(s=>(
+                              <div key={s.label} style={{background:'rgba(255,255,255,0.03)',borderRadius:8,padding:'8px 10px',textAlign:'center',border:`1px solid ${C.border}`}}>
+                                <div style={{...num,fontSize:18,color:s.color}}>{s.val}</div>
+                                <div style={{fontSize:8,color:C.t3,marginTop:2,textTransform:'uppercase',letterSpacing:'.08em'}}>{s.label}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Barra de ocupación */}
+                          <div style={{marginBottom:10}}>
+                            <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+                              <span style={{fontSize:9,color:C.t3}}>Ocupación</span>
+                              <span style={{...num,fontSize:9,color:barColor}}>{pct}%</span>
+                            </div>
+                            <div style={{height:6,background:'rgba(255,255,255,0.06)',borderRadius:3,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${pct}%`,background:`linear-gradient(90deg,${barColor},${barColor}aa)`,borderRadius:3,transition:'width .5s ease'}}/>
+                            </div>
+                          </div>
+
+                          {/* Flags */}
+                          <div style={{display:'flex',gap:6}}>
+                            <span style={{padding:'3px 10px',borderRadius:8,background:'rgba(99,102,241,0.08)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)',fontSize:9,fontWeight:600}}>🇵🇾 PY: {m.py}</span>
+                            <span style={{padding:'3px 10px',borderRadius:8,background:'rgba(212,168,67,0.08)',color:C.gold2,border:'1px solid rgba(212,168,67,0.2)',fontSize:9,fontWeight:600}}>🇧🇴 BO: {m.bo}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                {modelos.length>0&&<div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(modelos.length,4)},1fr)`,gap:10,marginBottom:14}}>
-                  {modelos.map(m=>{
-                    const pct=Math.round((m.activos/m.total)*100)
-                    const asigPct=Math.round(((m.total-m.libres)/m.total)*100)
-                    return(
-                      <div key={m.modelo} style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 16px'}}>
-                        <div style={{fontSize:10,fontWeight:700,marginBottom:4,color:C.t1}}>{m.modelo}</div>
-                        <div style={{...num,fontSize:9,color:C.t3,marginBottom:10}}>{m.hashrate} TH/s</div>
-                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:9}}>
-                          <span style={{color:C.t3}}>Total</span><span style={{...num,color:C.t1}}>{m.total}</span>
-                        </div>
-                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:9}}>
-                          <span style={{color:C.t3}}>Asignados</span><span style={{...num,color:C.gold2}}>{m.total-m.libres}</span>
-                        </div>
-                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:10,fontSize:9}}>
-                          <span style={{color:C.t3}}>Libres</span><span style={{...num,color:m.libres>0?C.amber:C.green}}>{m.libres}</span>
-                        </div>
-                        <div style={{height:4,background:'rgba(255,255,255,0.06)',borderRadius:2,marginBottom:4}}>
-                          <div style={{height:'100%',width:`${asigPct}%`,background:C.gold,borderRadius:2}}/>
-                        </div>
-                        <div style={{fontSize:8,color:C.t3}}>{asigPct}% asignado</div>
-                        <div style={{display:'flex',gap:6,marginTop:8,fontSize:8}}>
-                          <span style={{padding:'2px 7px',borderRadius:8,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)'}}>🇵🇾 {m.py}</span>
-                          <span style={{padding:'2px 7px',borderRadius:8,background:'rgba(212,168,67,0.1)',color:C.gold2,border:'1px solid rgba(212,168,67,0.2)'}}>🇧🇴 {m.bo}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>}
-              </>)
+              )
             })()}
 
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              <span style={{fontSize:9,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>📋 Inventario individual</span>
-              <button className="btn-gold" style={btn('gold')} onClick={()=>setModal('equipo')}>+ Agregar equipo</button>
+            {/* ══════════════════════════════════════════
+                SECCIÓN 3: EQUIPOS POR CLIENTE
+            ══════════════════════════════════════════ */}
+            {(()=>{
+              const clientesConEq=clientes.filter(c=>equipos.some(e=>e.cliente_asignado_id===c.id))
+              if(!clientesConEq.length)return null
+              return(
+                <div style={{marginBottom:16}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                    <div style={{width:3,height:18,background:`linear-gradient(${C.blue},#818cf8)`,borderRadius:2}}/>
+                    <span style={{fontSize:11,fontWeight:700,color:C.t1,letterSpacing:'.08em',textTransform:'uppercase'}}>👥 Equipos por Cliente</span>
+                  </div>
+                  <div style={{background:'rgba(14,14,22,0.85)',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:14,overflow:'hidden'}}>
+                    {/* Header */}
+                    <div style={{display:'grid',gridTemplateColumns:'2fr 3fr 1fr 1fr 1fr',gap:0,padding:'10px 18px',background:'rgba(255,255,255,0.02)',borderBottom:`1px solid ${C.border}`}}>
+                      {['Cliente','Equipos','TH/s total','Energía/mes','Ubicación'].map(h=>(
+                        <span key={h} style={{fontSize:8,color:C.t3,textTransform:'uppercase',letterSpacing:'.12em',fontWeight:600}}>{h}</span>
+                      ))}
+                    </div>
+                    {clientesConEq.map((c,i)=>{
+                      const eqCliente=equipos.filter(e=>e.cliente_asignado_id===c.id)
+                      const totalTH=eqCliente.reduce((a,e)=>a+Number(e.hashrate||0),0)
+                      const energiaMes=eqCliente.reduce((a,e)=>a+(Number(e.hashrate||0)>=300?163:90),0)
+                      // Agrupar por modelo
+                      const grupos=eqCliente.reduce((acc,e)=>{
+                        const k=`${e.modelo}||${e.hashrate}`
+                        if(!acc[k])acc[k]={modelo:e.modelo,hashrate:e.hashrate,cantidad:0}
+                        acc[k].cantidad++
+                        return acc
+                      },{})
+                      const ubicaciones=[...new Set(eqCliente.map(e=>e.ubicacion||'PY'))].join(', ')
+                      return(
+                        <div key={c.id} style={{display:'grid',gridTemplateColumns:'2fr 3fr 1fr 1fr 1fr',gap:0,padding:'12px 18px',borderBottom:i<clientesConEq.length-1?`1px solid ${C.border}`:'none',alignItems:'center'}}>
+                          {/* Cliente */}
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{width:30,height:30,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.5),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#000',flexShrink:0}}>
+                              {c.nombre.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{fontSize:11,fontWeight:600,color:C.t1}}>{c.nombre}</div>
+                              <div style={{fontSize:8,color:C.t3,marginTop:1}}>{c.pais}</div>
+                            </div>
+                          </div>
+                          {/* Equipos agrupados */}
+                          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                            {Object.values(grupos).map((g,j)=>(
+                              <span key={j} style={{padding:'3px 8px',borderRadius:6,background:'rgba(99,102,241,0.08)',border:'1px solid rgba(99,102,241,0.2)',fontSize:9,color:C.blue,fontWeight:600}}>
+                                {g.modelo.replace('Antminer ','').replace(' (','').replace('Th)','')} <span style={{color:C.gold2}}>×{g.cantidad}</span>
+                              </span>
+                            ))}
+                          </div>
+                          {/* TH total */}
+                          <div style={{...num,fontSize:12,color:C.gold2}}>{totalTH}TH</div>
+                          {/* Energía */}
+                          <div style={{fontSize:11,color:C.amber,fontWeight:600}}>${energiaMes}</div>
+                          {/* Ubicación */}
+                          <div style={{fontSize:9,color:C.t3}}>{ubicaciones}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* ══════════════════════════════════════════
+                SECCIÓN 4: INVENTARIO INDIVIDUAL
+            ══════════════════════════════════════════ */}
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{width:3,height:18,background:`linear-gradient(${C.green},#34d399)`,borderRadius:2}}/>
+                  <span style={{fontSize:11,fontWeight:700,color:C.t1,letterSpacing:'.08em',textTransform:'uppercase'}}>📋 Inventario Individual</span>
+                  <span style={{fontSize:9,color:C.t3}}>{equipos.length} máquinas</span>
+                </div>
+                <button className="btn-gold" style={btn('gold')} onClick={()=>setModal('equipo')}>+ Agregar equipo</button>
+              </div>
+
+              <div style={{background:'rgba(14,14,22,0.85)',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:14,overflow:'hidden'}}>
+                {/* Header tabla */}
+                <div style={{display:'grid',gridTemplateColumns:'28px 2fr 1fr 80px 80px 120px 140px 60px',gap:0,padding:'10px 16px',background:'rgba(255,255,255,0.02)',borderBottom:`1px solid ${C.border}`}}>
+                  {['','Modelo / Serie','Ubicación','TH/s','Temp','Estado','Cliente',''].map((h,i)=>(
+                    <span key={i} style={{fontSize:8,color:C.t3,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>{h}</span>
+                  ))}
+                </div>
+
+                {equipos.map((e,i)=>{
+                  const clienteAsig=clientes.find(c=>c.id===e.cliente_asignado_id)
+                  const esHydro=Number(e.hashrate||0)>=300
+                  const statusColor=e.estado==='activo'?C.green:e.estado==='advertencia'?C.amber:C.t3
+                  return(
+                    <div key={e.id} style={{display:'grid',gridTemplateColumns:'28px 2fr 1fr 80px 80px 120px 140px 60px',gap:0,padding:'11px 16px',borderBottom:i<equipos.length-1?`1px solid ${C.border}`:'none',alignItems:'center',transition:'background .15s'}}
+                      onMouseEnter={ev=>ev.currentTarget.style.background='rgba(255,255,255,0.015)'}
+                      onMouseLeave={ev=>ev.currentTarget.style.background='transparent'}>
+
+                      {/* LED status */}
+                      <span style={{width:8,height:8,borderRadius:'50%',background:statusColor,display:'inline-block',boxShadow:e.estado==='activo'?`0 0 6px ${C.green}`:'none',animation:e.estado==='activo'?'ledPulse 2s infinite':'none'}}/>
+
+                      {/* Modelo + serie */}
+                      <div style={{minWidth:0}}>
+                        <div style={{fontSize:11,fontWeight:600,color:C.t1,display:'flex',alignItems:'center',gap:6}}>
+                          <span>{e.modelo}</span>
+                          <span style={{fontSize:8,padding:'1px 6px',borderRadius:6,background:esHydro?'rgba(99,102,241,0.1)':'rgba(16,185,129,0.08)',color:esHydro?C.blue:C.green,border:`1px solid ${esHydro?'rgba(99,102,241,0.2)':'rgba(16,185,129,0.15)'}`,fontWeight:700}}>
+                            {esHydro?'💧':'✈'}
+                          </span>
+                        </div>
+                        {e.numero_serie&&<div style={{fontSize:8,color:C.t3,marginTop:2,fontFamily:'monospace'}}>SN: {e.numero_serie}</div>}
+                      </div>
+
+                      {/* Ubicación */}
+                      <div style={{fontSize:9,color:C.t3}}>
+                        {e.ubicacion==='Bolivia'?'🇧🇴 Bolivia':'🇵🇾 Paraguay'}
+                      </div>
+
+                      {/* Hashrate */}
+                      <div style={{...num,fontSize:11,color:C.gold2}}>{e.hashrate}TH</div>
+
+                      {/* Temperatura */}
+                      <div style={{fontSize:10,color:Number(e.temperatura)>79?C.red:Number(e.temperatura)>70?C.amber:C.t3,fontFamily:'monospace',fontWeight:600}}>
+                        {e.temperatura?`${e.temperatura}°C`:'—'}
+                      </div>
+
+                      {/* Estado */}
+                      <div>
+                        <span style={{fontSize:8,padding:'3px 9px',borderRadius:10,background:e.estado==='activo'?'rgba(16,185,129,0.1)':e.estado==='advertencia'?'rgba(245,158,11,0.1)':'rgba(255,255,255,0.04)',color:statusColor,border:`1px solid ${e.estado==='activo'?'rgba(16,185,129,0.25)':e.estado==='advertencia'?'rgba(245,158,11,0.25)':C.border}`,fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em'}}>
+                          {e.estado==='activo'?'✓ Activo':e.estado==='advertencia'?'⚠ Advertencia':'○ Inactivo'}
+                        </span>
+                      </div>
+
+                      {/* Cliente asignado / selector */}
+                      <div>
+                        {clienteAsig?(
+                          <div style={{display:'flex',alignItems:'center',gap:5}}>
+                            <div style={{width:20,height:20,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.5),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,fontWeight:700,color:'#000',flexShrink:0}}>
+                              {clienteAsig.nombre.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()}
+                            </div>
+                            <select value={e.cliente_asignado_id||''} onChange={async ev=>{
+                              await supabase.from('equipos').update({cliente_asignado_id:ev.target.value||null}).eq('id',e.id)
+                              fetchAll()
+                            }} style={{background:'transparent',border:'none',color:C.blue,fontSize:9,fontFamily:'Inter,sans-serif',cursor:'pointer',fontWeight:600,maxWidth:90,outline:'none'}}>
+                              <option value="">{clienteAsig.nombre}</option>
+                              <option value="">— Liberar —</option>
+                              {clientes.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                            </select>
+                          </div>
+                        ):(
+                          <select value={''} onChange={async ev=>{
+                            if(!ev.target.value)return
+                            await supabase.from('equipos').update({cliente_asignado_id:ev.target.value||null}).eq('id',e.id)
+                            fetchAll()
+                          }} style={{background:'rgba(245,158,11,0.06)',border:'1px solid rgba(245,158,11,0.2)',borderRadius:6,padding:'3px 7px',color:C.amber,fontSize:9,fontFamily:'Inter,sans-serif',cursor:'pointer',maxWidth:110,outline:'none'}}>
+                            <option value="">📦 Libre</option>
+                            {clientes.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Delete */}
+                      <button style={{...btn('ghost'),padding:'4px 7px',fontSize:11,color:C.red,border:'none',background:'none'}} onClick={()=>del('equipos',e.id)}>🗑</button>
+                    </div>
+                  )
+                })}
+                {!equipos.length&&<div style={{padding:48,color:C.t3,textAlign:'center',fontSize:12,textTransform:'uppercase',letterSpacing:'.1em'}}>Sin equipos registrados</div>}
+              </div>
             </div>
 
-            <div style={panel}>
-              {equipos.map(e=>{
-                const clienteAsig=clientes.find(c=>c.id===e.cliente_asignado_id)
-                return(
-                  <div key={e.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:`1px solid ${C.border}`}}>
-                    <span style={{width:7,height:7,borderRadius:'50%',flexShrink:0,background:e.estado==='activo'?C.green:e.estado==='advertencia'?C.amber:C.t3,animation:e.estado==='activo'?'ledPulse 2s infinite':'none'}}/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:11,fontWeight:600}}>{e.modelo}</div>
-                      <div style={{fontSize:8,color:C.t3,marginTop:2,display:'flex',gap:8}}>
-                        {e.numero_serie&&<span style={{fontFamily:'monospace'}}>SN: {e.numero_serie}</span>}
-                        <span>{e.ubicacion||'Paraguay'}</span>
-                        <span style={{textTransform:'uppercase'}}>{e.estado}</span>
-                      </div>
-                    </div>
-                    <span style={{...num,fontSize:11,color:C.gold2}}>{e.hashrate}TH</span>
-                    {clienteAsig?(
-                      <span style={{fontSize:9,padding:'3px 10px',borderRadius:10,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)',maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{clienteAsig.nombre}</span>
-                    ):(
-                      <span style={{fontSize:9,padding:'3px 10px',borderRadius:10,background:'rgba(245,158,11,0.08)',color:C.amber,border:'1px solid rgba(245,158,11,0.2)'}}>Libre</span>
-                    )}
-                    <select value={e.cliente_asignado_id||''} onChange={async ev=>{
-                      await supabase.from('equipos').update({cliente_asignado_id:ev.target.value||null}).eq('id',e.id)
-                      fetchAll()
-                    }} style={{background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:6,padding:'4px 8px',color:C.t2,fontSize:9,fontFamily:'Inter,sans-serif',cursor:'pointer',maxWidth:120}}>
-                      <option value="">Sin asignar</option>
-                      {clientes.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
-                    <button style={{...btn('ghost'),padding:'4px 8px',fontSize:9,color:C.red}} onClick={()=>del('equipos',e.id)}>🗑</button>
-                  </div>
-                )
-              })}
-              {!equipos.length&&<div style={{padding:40,color:C.t3,textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin equipos registrados</div>}
-            </div>
           </div>}
+
 
           {/* ─── CLIENTES ─── */}
           {page==='clientes'&&<div className="page">
