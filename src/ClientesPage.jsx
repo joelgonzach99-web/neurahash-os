@@ -652,8 +652,14 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
             {label:'Hosting cobrado este mes',val:money(pagos.filter(p=>p.tipo==='hosting'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0)),color:C.green},
             {label:'Energía cobrada este mes',val:money(pagos.filter(p=>p.tipo==='energia'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0)),color:C.amber},
             {label:'Pendiente hosting',val:money(clientes.reduce((a,c)=>{
-              const{usdMesFee,feePct,btcMesFee}=calcClienteFee(c)
-              const hostingUsd=feePct>0&&usdMesFee?usdMesFee:(feePct>0&&btcMesFee&&btcPrice?btcMesFee*btcPrice:Number(c.tarifa_mensual)||0)
+              const{usdMesFee,feePct,btcMesFee,btcDiaFee}=calcClienteFee(c)
+              let hostingUsd=0
+              if(feePct>0){
+                if(usdMesFee) hostingUsd=usdMesFee
+                else if(btcMesFee&&btcPrice) hostingUsd=btcMesFee*btcPrice
+                else if(btcDiaFee&&btcPrice) hostingUsd=btcDiaFee*30*btcPrice
+              }
+              if(!hostingUsd) hostingUsd=Number(c.tarifa_mensual)||0
               return a+(getEstadoPago(c)!=='pagado'?hostingUsd:0)
             },0)),color:C.orange},
             {label:'Pendiente energía',val:money(clientes.reduce((a,c)=>{
