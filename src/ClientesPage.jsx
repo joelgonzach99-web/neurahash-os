@@ -112,6 +112,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   const[feePcts,setFeePcts]=useState({})
   const[editando,setEditando]=useState(null)
   const[editForm,setEditForm]=useState({})
+  const[editandoFecha,setEditandoFecha]=useState(null) // {clienteId, grupoKey, ids}
+  const[fechaTemp,setFechaTemp]=useState('')
 
   const { btcPrice, difficulty, lastUpdate, loading: miningLoading, calcBtcDay, refetch } = useMiningData()
 
@@ -185,6 +187,19 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   async function setFee(clienteId, pct){
     setFeePcts(prev=>({...prev,[clienteId]:pct}))
     try{ await supabase.from('clientes').update({hosting_fee_pct:pct}).eq('id',clienteId) }catch{}
+  }
+
+  async function guardarFechaAsignacion(){
+    if(!editandoFecha||!fechaTemp){toast('Fecha inválida','error');return}
+    // Update fecha_asignacion for all ids in the group
+    await Promise.all(editandoFecha.ids.map(equipoId=>
+      supabase.from('cliente_equipos')
+        .update({fecha_asignacion:fechaTemp})
+        .eq('cliente_id',editandoFecha.clienteId)
+        .eq('equipo_id',equipoId)
+    ))
+    setEditandoFecha(null);setFechaTemp('')
+    fetchData();toast('Fecha actualizada ✓','success')
   }
 
   function iniciarEditDia(cliente){ setEditandoDia(cliente.id); setDiaTemp(String(cliente.dia_cobro||1)) }
@@ -540,9 +555,23 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                               {diasProximo!==null&&<span style={{fontSize:8,padding:'1px 5px',borderRadius:5,background:diasProximo<=3?'rgba(244,63,94,0.1)':'rgba(99,102,241,0.1)',color:diasProximo<=3?C.red:C.blue}}>{diasProximo===0?'hoy':`en ${diasProximo}d`}</span>}
                             </div>
                           )}
-                          {grupo.fechaAsignacion&&(
-                            <div style={{fontSize:8,color:C.t3}}>desde {grupo.fechaAsignacion}</div>
-                          )}
+                          {/* Editar fecha de asignación */}
+                          <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2}}>
+                            {editandoFecha?.grupoKey===`${c.id}||${grupo.modelo}||${grupo.hashrate}`?(
+                              <div style={{display:'flex',alignItems:'center',gap:4}}>
+                                <input type="date" value={fechaTemp} onChange={e=>setFechaTemp(e.target.value)}
+                                  style={{background:'rgba(255,255,255,0.08)',border:`1px solid ${C.gold}`,borderRadius:4,padding:'2px 6px',color:C.gold2,fontFamily:'monospace',fontSize:9,outline:'none'}}
+                                  autoFocus/>
+                                <button onClick={()=>guardarFechaAsignacion()} style={{background:'rgba(16,185,129,0.15)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:4,padding:'1px 6px',cursor:'pointer',color:C.green,fontSize:9,fontFamily:'Inter,sans-serif'}}>✓</button>
+                                <button onClick={()=>{setEditandoFecha(null);setFechaTemp('')}} style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,borderRadius:4,padding:'1px 6px',cursor:'pointer',color:C.t3,fontSize:9,fontFamily:'Inter,sans-serif'}}>×</button>
+                              </div>
+                            ):(
+                              <div style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer'}} onClick={()=>{setEditandoFecha({clienteId:c.id,grupoKey:`${c.id}||${grupo.modelo}||${grupo.hashrate}`,ids:grupo.ids});setFechaTemp(grupo.fechaAsignacion||new Date().toISOString().slice(0,10))}}>
+                                <span style={{fontSize:8,color:C.t3}}>desde {grupo.fechaAsignacion||'—'}</span>
+                                <span style={{fontSize:8,color:C.t3,opacity:.5}}>✏</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
