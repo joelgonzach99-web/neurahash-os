@@ -326,6 +326,7 @@ export default function App(){
   const[contabFilter,setContabFilter]=useState({tipo:'all',responsable:'all',moneda:'all',periodo:'all'})
   const[contabTab,setContabTab]=useState('movimientos')
   const[confirmDel,setConfirmDel]=useState(null) // {table,id,desc}
+  const[metaIngreso,setMetaIngreso]=useState(()=>{try{return Number(localStorage.getItem('nh_meta_ingreso'))||0}catch{return 0}})
 
   useEffect(()=>{fetchAll()},[])
   useEffect(()=>{fetchBTC();const t=setInterval(fetchBTC,60000);return()=>clearInterval(t)},[])
@@ -384,6 +385,22 @@ export default function App(){
     return f.tipo==='gasto'&&fm===mesActual
   }).reduce((a,b)=>a+b.montoUSD,0)
   const presupuestoPct=presupuestoMes?Math.min(100,Math.round((gastoMes/(presupuestoMes.monto||1))*100)):null
+
+  // Meta de ingresos del mes
+  const ingresoMes=finanzasUSD.filter(f=>f.tipo==='ingreso'&&f.fecha?.slice(0,7)===mesActual).reduce((a,b)=>a+b.montoUSD,0)
+  const metaPct=metaIngreso>0?Math.min(100,Math.round((ingresoMes/metaIngreso)*100)):null
+
+  // Badges / logros
+  const totalEqActivos=equipos.filter(e=>e.estado==='activo').length
+  const eqAsignados=equipos.filter(e=>e.estado==='activo'&&e.cliente_asignado_id).length
+  const badges=[
+    {id:'primer_cliente',icon:'🏆',name:'Primer Cliente',desc:'Registraste tu primer cliente',locked:clientes.length<1},
+    {id:'rookie',icon:'⛏',name:'Mining Rookie',desc:'100+ TH de hashrate total',locked:totalHash<100},
+    {id:'pro',icon:'🔥',name:'Mining Pro',desc:'1,000+ TH de hashrate total',locked:totalHash<1000},
+    {id:'elite',icon:'💎',name:'Mining Elite',desc:'10,000+ TH de hashrate total',locked:totalHash<10000},
+    {id:'full_house',icon:'🏭',name:'Full House',desc:'Todos los equipos asignados a clientes',locked:totalEqActivos===0||eqAsignados<totalEqActivos},
+    {id:'cobrador',icon:'💰',name:'Cobrador Elite',desc:'Todas las cuentas del mes cobradas',locked:cuentasPorCobrar.length===0||cuentasPorCobrar.some(c=>c.estado!=='pagado')},
+  ]
 
   // Filtered finanzas
   const finanzasFiltradas=finanzas.filter(f=>{
@@ -474,6 +491,13 @@ export default function App(){
     const mes=form.mes||mesActual
     await supabase.from('presupuestos').upsert([{mes,monto:Number(form.monto),notas:form.notas||''}],{onConflict:'mes'})
     setModal(null);setForm({});fetchAll();toast('Presupuesto guardado ✓','success')
+  }
+  function saveMetaIngreso(){
+    if(!form.monto){toast('Ingresá el monto','error');return}
+    const val=Number(form.monto)
+    setMetaIngreso(val)
+    try{localStorage.setItem('nh_meta_ingreso',String(val))}catch{}
+    setModal(null);setForm({});toast('Meta de ingresos guardada ✓','success')
   }
   async function marcarCobrada(cpc){
     await supabase.from('cuentas_por_cobrar').update({estado:'pagado'}).eq('id',cpc.id)
@@ -646,37 +670,80 @@ export default function App(){
 
           {/* ─── DASHBOARD ─── */}
           {page==='dashboard'&&<div className="page">
-            <div className="stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+            <div className="stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}}>
               {[
-                {label:'Equipos Activos',val:activeEq,sub:`de ${equipos.length} totales`,color:C.green,icon:'⛏'},
-                {label:'Hashrate Total',val:totalHash+'TH',sub:'combinado',color:C.gold,icon:'₿'},
-                {label:'Por Cobrar',val:money(totalPorCobrar),sub:`${vencidasCPC} vencidas`,color:vencidasCPC>0?C.red:C.blue,icon:'💰'},
-                {label:'Alertas Energía',val:alertas.length,sub:'pendientes',color:C.red,icon:'⚡'},
+                {label:'Equipos Activos',val:activeEq,sub:`de ${equipos.length} totales`,color:C.green,icon:'⛏',glow:activeEq>=5},
+                {label:'Hashrate Total',val:totalHash+'TH',sub:'combinado',color:C.gold,icon:'₿',glow:totalHash>=1000},
+                {label:'Por Cobrar',val:money(totalPorCobrar),sub:`${vencidasCPC} vencidas`,color:vencidasCPC>0?C.red:C.blue,icon:'💰',glow:false},
+                {label:'Alertas Energía',val:alertas.length,sub:'pendientes',color:C.red,icon:'⚡',glow:false},
               ].map(s=>(
-                <div key={s.label} className="stat-card" style={{background:'linear-gradient(135deg,rgba(22,22,34,0.9),rgba(14,14,20,0.9))',backdropFilter:'blur(20px)',border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 14px',position:'relative',overflow:'hidden',transition:'transform .2s'}}>
-                  <div style={{position:'absolute',top:-25,right:-25,width:70,height:70,borderRadius:'50%',background:s.color,filter:'blur(25px)',opacity:.2,pointerEvents:'none'}}/>
-                  <div style={{fontSize:8,letterSpacing:'.1em',color:C.t3,textTransform:'uppercase',fontWeight:600,marginBottom:6}}>{s.label}</div>
-                  <div style={{...num,fontSize:20,color:s.color,filter:F}}>{s.val}</div>
-                  <div style={{fontSize:8,color:C.t3,marginTop:3}}>{s.sub}</div>
-                  <div style={{position:'absolute',right:8,bottom:6,fontSize:20,opacity:.07}}>{s.icon}</div>
+                <div key={s.label} className="stat-card" style={{background:'linear-gradient(135deg,rgba(22,22,34,0.9),rgba(14,14,20,0.9))',backdropFilter:'blur(20px)',border:`1px solid ${s.glow?s.color:C.border}`,borderRadius:14,padding:'18px 20px',position:'relative',overflow:'hidden',transition:'transform .2s',boxShadow:s.glow?`0 0 24px ${s.color}33`:'none'}}>
+                  <div style={{position:'absolute',top:-20,right:-20,width:90,height:90,borderRadius:'50%',background:s.color,filter:'blur(30px)',opacity:s.glow?.35:.15,pointerEvents:'none'}}/>
+                  <div style={{fontSize:9,letterSpacing:'.12em',color:C.t3,textTransform:'uppercase',fontWeight:600,marginBottom:8}}>{s.label}</div>
+                  <div style={{...num,fontSize:28,color:s.color,filter:F,lineHeight:1}}>{s.val}</div>
+                  <div style={{fontSize:10,color:C.t3,marginTop:6}}>{s.sub}</div>
+                  <div style={{position:'absolute',right:10,bottom:8,fontSize:28,opacity:.08}}>{s.icon}</div>
                 </div>
               ))}
             </div>
 
             {/* Presupuesto del mes */}
-            {presupuestoMes&&<div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'12px 16px',marginBottom:12}}>
+            {presupuestoMes&&<div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 18px',marginBottom:12}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <span style={{fontSize:9,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>💰 Presupuesto {mesActual}</span>
-                <span style={{...num,fontSize:11,color:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green}}>{presupuestoPct}% usado</span>
+                <span style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>💸 Presupuesto de gastos {mesActual}</span>
+                <span style={{...num,fontSize:12,color:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green}}>{presupuestoPct}% usado</span>
               </div>
-              <div style={{height:6,background:'rgba(255,255,255,0.06)',borderRadius:3,overflow:'hidden'}}>
-                <div style={{height:'100%',width:`${presupuestoPct}%`,background:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green,borderRadius:3,transition:'width .5s ease'}}/>
+              <div style={{height:7,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
+                <div style={{height:'100%',width:`${presupuestoPct}%`,background:presupuestoPct>90?C.red:presupuestoPct>70?C.amber:C.green,borderRadius:4,transition:'width .5s ease'}}/>
               </div>
-              <div style={{display:'flex',justifyContent:'space-between',marginTop:6,fontSize:9,color:C.t3}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:7,fontSize:10,color:C.t3}}>
                 <span>Gastado: <span style={{color:C.t1,fontFamily:'monospace'}}>{money(gastoMes)}</span></span>
                 <span>Presupuesto: <span style={{color:C.t1,fontFamily:'monospace'}}>{money(presupuestoMes.monto)}</span></span>
               </div>
             </div>}
+
+            {/* Meta de ingresos del mes */}
+            <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${metaPct>=100?C.green:C.border}`,borderRadius:12,padding:'14px 18px',marginBottom:12,boxShadow:metaPct>=100?`0 0 18px ${C.green}22`:'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                <span style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600}}>🎯 Meta de ingresos — {mesActual}</span>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  {metaPct!==null&&<span style={{...num,fontSize:12,color:metaPct>=100?C.green:metaPct>=60?C.amber:C.red}}>{metaPct}%</span>}
+                  <button onClick={()=>{setForm({monto:metaIngreso||''});setModal('metaIngreso')}} style={{fontSize:9,color:'rgba(212,168,67,0.7)',cursor:'pointer',background:'none',border:'none',fontFamily:'Inter,sans-serif',fontWeight:600}}>
+                    {metaIngreso>0?'Editar meta →':'+ Setear meta'}
+                  </button>
+                </div>
+              </div>
+              {metaIngreso>0?(
+                <>
+                  <div style={{height:7,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:`${metaPct||0}%`,background:metaPct>=100?C.green:metaPct>=60?C.amber:C.red,borderRadius:4,transition:'width .5s ease'}}/>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',marginTop:7,fontSize:10,color:C.t3}}>
+                    <span>Ingresado: <span style={{color:C.green,fontFamily:'monospace'}}>{money(ingresoMes)}</span></span>
+                    <span>Meta: <span style={{color:C.t1,fontFamily:'monospace'}}>{money(metaIngreso)}</span></span>
+                  </div>
+                </>
+              ):(
+                <div style={{fontSize:10,color:C.t3,fontStyle:'italic'}}>Sin meta configurada — hacé click en "+ Setear meta" para definirla</div>
+              )}
+            </div>
+
+            {/* Badges / Logros */}
+            <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 18px',marginBottom:14}}>
+              <div style={{fontSize:10,color:C.t2,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:12}}>🏅 Logros</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+                {badges.map(b=>(
+                  <div key={b.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,background:b.locked?'rgba(255,255,255,0.02)':'rgba(212,168,67,0.07)',border:`1px solid ${b.locked?'rgba(255,255,255,0.05)':'rgba(212,168,67,0.25)'}`,opacity:b.locked?.45:1,transition:'all .2s'}}>
+                    <span style={{fontSize:22,filter:b.locked?'grayscale(1)':'none',flexShrink:0}}>{b.icon}</span>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:10,fontWeight:700,color:b.locked?C.t3:C.gold2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{b.name}</div>
+                      <div style={{fontSize:8,color:C.t3,marginTop:2,lineHeight:1.3}}>{b.desc}</div>
+                      {!b.locked&&<div style={{fontSize:8,color:C.green,marginTop:3,fontWeight:600}}>✓ Desbloqueado</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div className="two-col" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
               <div style={panel}>
@@ -1315,7 +1382,7 @@ export default function App(){
           <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:`1px solid ${C.border2}`,borderRadius:16,width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.7)'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
               <div style={{fontFamily:'monospace',fontSize:11,fontWeight:700,letterSpacing:'.08em'}}>
-                {({cliente:'NUEVO CLIENTE',equipo:'NUEVO EQUIPO',finanza:'REGISTRAR MOVIMIENTO',editFinanza:'EDITAR MOVIMIENTO',alerta:'NUEVA ALERTA',tarea:'NUEVA TAREA',cobrar:'CUENTA POR COBRAR',presupuesto:'PRESUPUESTO MENSUAL'})[modal]}
+                {({cliente:'NUEVO CLIENTE',equipo:'NUEVO EQUIPO',finanza:'REGISTRAR MOVIMIENTO',editFinanza:'EDITAR MOVIMIENTO',alerta:'NUEVA ALERTA',tarea:'NUEVA TAREA',cobrar:'CUENTA POR COBRAR',presupuesto:'PRESUPUESTO MENSUAL',metaIngreso:'META DE INGRESOS'})[modal]}
               </div>
               <button style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,color:C.t2,width:28,height:28,borderRadius:6,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>{setModal(null);setForm({})}}>×</button>
             </div>
@@ -1452,6 +1519,19 @@ export default function App(){
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
                   <button className="btn-gold" style={btn('gold')} onClick={addPresupuesto}>✓ Guardar</button>
+                </div>
+              </>}
+
+              {modal==='metaIngreso'&&<>
+                <div style={{marginBottom:16,padding:'12px 14px',background:'rgba(16,185,129,0.05)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8}}>
+                  <div style={{fontSize:10,color:C.green,fontWeight:600,marginBottom:3}}>🎯 Objetivo de ingresos mensuales</div>
+                  <div style={{fontSize:9,color:C.t3}}>Define cuánto querés facturar este mes. La barra de progreso en el dashboard mostrará el avance en tiempo real.</div>
+                </div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Meta de ingresos (USD)</label><input style={fInput} type="number" placeholder="10000" value={form.monto||''} onChange={e=>setForm({...form,monto:e.target.value})} autoFocus/></div>
+                {metaIngreso>0&&<div style={{marginBottom:12,fontSize:10,color:C.t3}}>Meta actual: <span style={{color:C.t1,fontFamily:'monospace'}}>{money(metaIngreso)}</span></div>}
+                <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
+                  <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
+                  <button className="btn-gold" style={btn('gold')} onClick={saveMetaIngreso}>✓ Guardar meta</button>
                 </div>
               </>}
 
