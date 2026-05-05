@@ -21,7 +21,6 @@ function getPeriodo(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
 }
 
-// Agrupar equipos por modelo+hashrate y contar cantidad
 function agruparEquipos(eqArr){
   const grupos={}
   eqArr.forEach(eq=>{
@@ -204,16 +203,22 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     if(onRefresh)onRefresh()
   }
 
+  // Asignar múltiples equipos del mismo modelo a la vez
   async function asignarEquipo(){
     if(!form.equipo_id){toast('Seleccioná un equipo','error');return}
-    const existe=clienteEquipos.find(ce=>ce.cliente_id===selected.id&&ce.equipo_id===form.equipo_id)
-    if(existe){toast('Ya está asignado','error');return}
-    await supabase.from('cliente_equipos').insert([{cliente_id:selected.id,equipo_id:form.equipo_id}])
-    setModal(null);setForm({});fetchData();toast('Equipo asignado ✓','success')
+    const grupo=modelosLibres.find(g=>g.ids[0]===form.equipo_id)
+    if(!grupo){toast('Equipo no disponible','error');return}
+    const cantidad=Number(form.cantidad_asignar)||1
+    if(cantidad>grupo.ids.length){toast('No hay suficientes unidades libres','error');return}
+    const idsAAsignar=grupo.ids.slice(0,cantidad)
+    const inserts=idsAAsignar.map(equipoId=>({cliente_id:selected.id,equipo_id:equipoId}))
+    await supabase.from('cliente_equipos').insert(inserts)
+    setModal(null);setForm({});fetchData()
+    toast(`${cantidad} equipo${cantidad>1?'s':''} asignado${cantidad>1?'s':''} ✓`,'success')
+    if(onRefresh)onRefresh()
   }
 
   async function desasignarGrupo(clienteId, ids){
-    // Desasignar todas las máquinas de un grupo (o una sola si ids tiene 1 elemento)
     await Promise.all(ids.map(equipoId=>
       supabase.from('cliente_equipos').delete().eq('cliente_id',clienteId).eq('equipo_id',equipoId)
     ))
@@ -294,7 +299,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     </select>
   )
 
-  // Equipos libres agrupados por modelo para el selector de asignación
   const equiposAsignadosIds = clienteEquipos.map(ce=>ce.equipo_id)
   const equiposLibres = equipos.filter(e=>e.estado==='activo'&&!equiposAsignadosIds.includes(e.id))
   const modelosLibres = agruparEquipos(equiposLibres)
@@ -369,16 +373,13 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
           return(
             <div key={c.id} style={{...panel,border:`1px solid ${vencido&&estadoHosting!=='pagado'?'rgba(244,63,94,0.3)':urgente&&estadoHosting!=='pagado'?'rgba(245,158,11,0.2)':C.border}`}}>
               <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.border}`}}>
-                {/* Fila 1: avatar + nombre + monto + botones */}
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
                   <div style={{width:40,height:40,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.5),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#000',flexShrink:0}}>{initials(c.nombre)}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:15,fontWeight:700}}>{c.nombre}</div>
                     <div style={{fontSize:10,color:C.t3,marginTop:2,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                      <span>{c.pais}</span>
-                      <span>·</span>
-                      <span>{equipCount} equipo{equipCount!==1?'s':''}</span>
-                      <span>·</span>
+                      <span>{c.pais}</span><span>·</span>
+                      <span>{equipCount} equipo{equipCount!==1?'s':''}</span><span>·</span>
                       <span>{totalTH} TH/s</span>
                       {c.ubicacion_granja&&<span style={{padding:'1px 7px',borderRadius:8,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)',fontSize:9}}>🏭 {c.ubicacion_granja}</span>}
                       {c.contacto&&<span>· {c.contacto}</span>}
@@ -403,7 +404,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id,c.nombre)} title="Eliminar">🗑</button>
                 </div>
 
-                {/* Selector de fee % */}
                 <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:10,flexWrap:'wrap'}}>
                   <span style={{fontSize:9,color:C.t3,letterSpacing:'.1em',textTransform:'uppercase',fontWeight:600}}>Fee hosting:</span>
                   {FEE_OPTIONS.map(pct=>(
@@ -412,14 +412,11 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                         background:feePct===pct?'rgba(247,147,26,0.2)':'rgba(255,255,255,0.04)',
                         color:feePct===pct?C.orange:C.t3,
                         outline:feePct===pct?`1px solid rgba(247,147,26,0.5)`:'1px solid rgba(255,255,255,0.06)',
-                      }}>
-                      {pct}%
-                    </button>
+                      }}>{pct}%</button>
                   ))}
                   {hasFee&&<button onClick={()=>setFee(c.id,0)} style={{padding:'4px 9px',borderRadius:6,border:`1px solid ${C.border}`,background:'none',cursor:'pointer',fontSize:10,color:C.t3,fontFamily:'Inter,sans-serif'}}>✕</button>}
                 </div>
 
-                {/* BTC producción */}
                 {equipCount>0&&btcDiaTotal!=null?(
                   <div style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:'rgba(247,147,26,0.04)',border:'1px solid rgba(247,147,26,0.1)',borderRadius:8,flexWrap:'wrap',marginBottom:10}}>
                     <div style={{display:'flex',alignItems:'center',gap:5}}>
@@ -440,7 +437,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   equipCount===0&&<div style={{fontSize:10,color:C.t3,fontStyle:'italic',marginBottom:10}}>⚠ Sin equipos asignados — asigná equipos para calcular producción BTC</div>
                 )}
 
-                {/* Cobro fecha + badges + WA */}
                 <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.03)',border:`1px solid ${C.border}`,borderRadius:7,padding:'6px 12px'}}>
                     <span style={{fontSize:9,color:C.t3}}>📅 Próximo cobro:</span>
@@ -471,9 +467,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </div>
 
-              {/* Grid: Equipos / Hosting / Energía */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:0}}>
-                {/* EQUIPOS — agrupados por modelo */}
                 <div style={{padding:'14px 16px',borderRight:`1px solid ${C.border}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                     <span style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600}}>⛏ Equipos</span>
@@ -491,10 +485,9 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                         <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                           <span style={{width:6,height:6,borderRadius:'50%',background:grupo.estado==='activo'?C.green:C.amber,flexShrink:0}}/>
                           <span style={{flex:1,fontSize:10,fontWeight:600}}>{grupo.modelo}</span>
-                          {/* Cantidad badge */}
                           <span style={{background:'rgba(212,168,67,0.15)',border:`1px solid rgba(212,168,67,0.3)`,borderRadius:6,padding:'2px 8px',fontFamily:'monospace',fontSize:11,fontWeight:700,color:C.gold2}}>×{grupo.cantidad}</span>
                           <span style={{...num,fontSize:10,color:C.t2}}>{grupo.hashrate}TH</span>
-                          <button style={{background:'none',border:'none',cursor:'pointer',color:C.t3,fontSize:12,padding:'0 2px'}} onClick={()=>desasignarGrupo(c.id,[grupo.ids[grupo.ids.length-1]])} title="Quitar 1 unidad">−</button>
+                          <button style={{background:'none',border:'none',cursor:'pointer',color:C.t3,fontSize:12,padding:'0 2px'}} onClick={()=>desasignarGrupo(c.id,[grupo.ids[grupo.ids.length-1]])} title="Quitar 1">−</button>
                           {grupo.cantidad>1&&<button style={{background:'none',border:'none',cursor:'pointer',color:C.red,fontSize:9,padding:'0 2px',fontFamily:'Inter,sans-serif'}} onClick={()=>desasignarGrupo(c.id,grupo.ids)} title="Quitar todas">✕</button>}
                         </div>
                         <div style={{paddingLeft:12,display:'flex',gap:10,flexWrap:'wrap'}}>
@@ -515,10 +508,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     <div>
                       <div style={{fontSize:11,fontWeight:600,color:estadoHosting==='pagado'?C.green:C.red}}>{estadoHosting==='pagado'?'Pagado':'Pendiente'}</div>
                       {hasFee&&btcMesFee?(
-                        <>
-                          <div style={{...num,fontSize:12,color:C.orange}}>{btcFmt(btcMesFee)}</div>
-                          {usdMesFee&&<div style={{fontSize:10,color:C.gold2,fontFamily:'monospace'}}>≈ {money(usdMesFee)}</div>}
-                        </>
+                        <><div style={{...num,fontSize:12,color:C.orange}}>{btcFmt(btcMesFee)}</div>
+                        {usdMesFee&&<div style={{fontSize:10,color:C.gold2,fontFamily:'monospace'}}>≈ {money(usdMesFee)}</div>}</>
                       ):(
                         <div style={{...num,fontSize:12,color:C.gold2}}>{money(c.tarifa_mensual)}</div>
                       )}
@@ -536,10 +527,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     <div>
                       <div style={{fontSize:11,fontWeight:600,color:estadoEnergia==='pagado'?C.green:C.amber}}>{estadoEnergia==='pagado'?'Pagado':'Pendiente'}</div>
                       {energiaTotal>0?(
-                        <>
-                          <div style={{...num,fontSize:12,color:C.gold2}}>{money(energiaTotal)}</div>
-                          <div style={{fontSize:9,color:C.t3,marginTop:1}}>{eqArr.length} equipo{eqArr.length!==1?'s':''} · auto-calculado</div>
-                        </>
+                        <><div style={{...num,fontSize:12,color:C.gold2}}>{money(energiaTotal)}</div>
+                        <div style={{fontSize:9,color:C.t3,marginTop:1}}>{eqArr.length} equipo{eqArr.length!==1?'s':''} · auto-calculado</div></>
                       ):(
                         <div style={{fontSize:10,color:C.t3}}>Sin equipos asignados</div>
                       )}
@@ -561,10 +550,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
         {!clientes.length&&<div style={{...panel,padding:40,color:C.t3,textAlign:'center',fontSize:12,textTransform:'uppercase'}}>Sin clientes registrados</div>}
       </div>}
 
-      {/* TAB CALCULADORA */}
       {tab==='calc'&&<CalculadoraTab equipos={equipos} btcPrice={btcPrice} calcBtcDay={calcBtcDay} difficulty={difficulty} C={C} num={num} money={money} btcFmt={btcFmt} btn={btn}/>}
 
-      {/* TAB PAGOS */}
       {tab==='pagos'&&<div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
           {[
@@ -603,7 +590,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
         </div>
       </div>}
 
-      {/* TAB ALERTAS */}
       {tab==='alertas'&&<div style={{display:'flex',flexDirection:'column',gap:10}}>
         {[...alertasVencidas,...alertasProximas].map(c=>{
           const dias=getDiasAlCobro(c); const vencido=dias<0
@@ -643,7 +629,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
             </div>
             <div style={{padding:20}}>
 
-              {/* NUEVO CLIENTE */}
               {modal==='cliente'&&<>
                 <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} placeholder="Ej: Carlos Reyes" value={form.nombre||''} onChange={e=>setForm({...form,nombre:e.target.value})}/></div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -670,7 +655,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </>}
 
-              {/* EDITAR CLIENTE */}
               {modal==='editar'&&<>
                 <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} value={editForm.nombre||''} onChange={e=>setEditForm({...editForm,nombre:e.target.value})}/></div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -693,7 +677,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </>}
 
-              {/* ASIGNAR EQUIPO — agrupado por modelo, muestra unidades libres */}
+              {/* ASIGNAR EQUIPO — con botones +/- para cantidad */}
               {modal==='equipo'&&<>
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:12,color:C.t2,marginBottom:14}}>Asignando equipo a: <strong style={{color:C.t1}}>{selected?.nombre}</strong></div>
@@ -707,26 +691,60 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                         const eqEnergia=calcEnergiaEquipo(Number(grupo.hashrate||0))
                         const isSelected=form.equipo_id===grupo.ids[0]
                         return(
-                          <button key={i} onClick={()=>setForm({...form,equipo_id:grupo.ids[0]})}
-                            style={{padding:'10px 14px',borderRadius:8,textAlign:'left',border:`1px solid ${isSelected?'rgba(247,147,26,0.5)':C.border}`,background:isSelected?'rgba(247,147,26,0.08)':'rgba(255,255,255,0.02)',cursor:'pointer',fontFamily:'Inter,sans-serif',transition:'all .15s'}}>
+                          <div key={i}
+                            onClick={()=>setForm({...form,equipo_id:grupo.ids[0],cantidad_asignar:1})}
+                            style={{padding:'10px 14px',borderRadius:8,border:`1px solid ${isSelected?'rgba(247,147,26,0.5)':C.border}`,background:isSelected?'rgba(247,147,26,0.08)':'rgba(255,255,255,0.02)',cursor:'pointer',transition:'all .15s'}}>
                             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                               <span style={{flex:1,fontSize:11,fontWeight:700,color:isSelected?C.orange:C.t1}}>{grupo.modelo}</span>
                               <span style={{background:'rgba(212,168,67,0.15)',border:`1px solid rgba(212,168,67,0.3)`,borderRadius:6,padding:'2px 10px',fontFamily:'monospace',fontSize:12,fontWeight:700,color:C.gold2}}>{grupo.cantidad} libre{grupo.cantidad!==1?'s':''}</span>
                               <span style={{...num,fontSize:11,color:C.t2}}>{grupo.hashrate} TH/s</span>
                             </div>
-                            <div style={{display:'flex',gap:12,paddingLeft:0}}>
+                            <div style={{display:'flex',gap:12}}>
                               {eqBtcDay&&<span style={{fontSize:9,fontFamily:'monospace',color:C.orange}}>{btcFmt(eqBtcDay)}/día por unidad</span>}
-                              <span style={{fontSize:9,color:C.amber}}>⚡ {money(eqEnergia)}/mes</span>
+                              <span style={{fontSize:9,color:C.amber}}>⚡ {money(eqEnergia)}/mes c/u</span>
                             </div>
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
                   )}
                 </div>
+
+                {/* Selector de cantidad con botones +/- */}
+                {form.equipo_id&&(()=>{
+                  const grupo=modelosLibres.find(g=>g.ids[0]===form.equipo_id)
+                  const max=grupo?grupo.ids.length:1
+                  const qty=Number(form.cantidad_asignar)||1
+                  const eqEnergia=grupo?calcEnergiaEquipo(Number(grupo.hashrate||0))*qty:0
+                  const eqBtcDay=grupo?calcBtcDay(Number(grupo.hashrate||0)):null
+                  return(
+                    <div style={{marginBottom:16,padding:'14px 16px',background:'rgba(212,168,67,0.05)',border:'1px solid rgba(212,168,67,0.2)',borderRadius:10}}>
+                      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+                        <span style={{fontSize:10,color:C.t2,fontWeight:600,flex:1}}>Cantidad a asignar:</span>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <button
+                            onClick={e=>{e.stopPropagation();setForm({...form,cantidad_asignar:Math.max(1,qty-1)})}}
+                            style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border2}`,color:C.t1,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontFamily:'monospace'}}>−</button>
+                          <span style={{fontFamily:'monospace',fontSize:22,fontWeight:800,color:C.gold2,minWidth:36,textAlign:'center'}}>{qty}</span>
+                          <button
+                            onClick={e=>{e.stopPropagation();setForm({...form,cantidad_asignar:Math.min(max,qty+1)})}}
+                            style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border2}`,color:C.t1,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontFamily:'monospace'}}>+</button>
+                        </div>
+                        <span style={{fontSize:9,color:C.t3}}>de {max} disponible{max!==1?'s':''}</span>
+                      </div>
+                      <div style={{display:'flex',gap:16,fontSize:9,color:C.t3}}>
+                        {eqBtcDay&&<span>⛏ <span style={{color:C.orange,fontFamily:'monospace'}}>{btcFmt(eqBtcDay*qty)}</span>/día total</span>}
+                        <span>⚡ <span style={{color:C.amber}}>{money(eqEnergia)}</span>/mes total</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({});setSelected(null)}}>Cancelar</button>
-                  <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={asignarEquipo} disabled={!form.equipo_id}>✓ Asignar</button>
+                  <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={asignarEquipo} disabled={!form.equipo_id}>
+                    ✓ Asignar {form.cantidad_asignar>1?`${form.cantidad_asignar} equipos`:'equipo'}
+                  </button>
                 </div>
               </>}
 
@@ -738,7 +756,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   )
 }
 
-// ─── TAB CALCULADORA — replica f2pool ───
 function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcFmt,btn}){
   const[hashrate,setHashrate]=useState('')
   const[customPrice,setCustomPrice]=useState('')
@@ -806,9 +823,7 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
                   background:feeSelected===pct?'rgba(247,147,26,0.2)':'rgba(255,255,255,0.04)',
                   color:feeSelected===pct?C.orange:C.t3,
                   outline:feeSelected===pct?'1px solid rgba(247,147,26,0.5)':'1px solid rgba(255,255,255,0.06)',
-                }}>
-                {pct===0?'0%':`${pct}%`}
-              </button>
+                }}>{pct===0?'0%':`${pct}%`}</button>
             ))}
           </div>
         </div>
