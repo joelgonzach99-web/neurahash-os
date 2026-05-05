@@ -1011,7 +1011,7 @@ export default function App(){
                       </div>
 
                       {/* Delete */}
-                      <button style={{...btn('ghost'),padding:'4px 7px',fontSize:11,color:C.red,border:'none',background:'none'}} onClick={()=>del('equipos',e.id,e.modelo)}>🗑</button>
+                      <button style={{...btn('ghost'),padding:'4px 7px',fontSize:11,color:C.red,border:'none',background:'none'}} onClick={()=>del('equipos',e.id)}>🗑</button>
                     </div>
                   )
                 })}
@@ -1148,8 +1148,7 @@ export default function App(){
                     <span style={{...num,fontSize:11,width:90,textAlign:'right',color:f.tipo==='ingreso'?C.green:C.red,filter:F,flexShrink:0}}>
                       {f.tipo==='ingreso'?'+':'-'}{money(f.monto,f.moneda||'USD')}
                     </span>
-                    <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.t2}} onClick={()=>{setForm({...f});setModal('editFinanza')}}>✏️</button>
-                    <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.red}} onClick={()=>del('finanzas',f.id,f.descripcion)}>🗑</button>
+                    <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.red}} onClick={()=>del('finanzas',f.id)}>🗑</button>
                   </div>
                 ))}
               </div>
@@ -1186,7 +1185,7 @@ export default function App(){
                       </span>
                       <span style={{...num,fontSize:12,color:C.gold2,filter:F}}>{money(cpc.monto,cpc.moneda||'USD')}</span>
                       {!pagado&&<button style={{...btn('ghost'),padding:'5px 10px',fontSize:9,color:C.green,border:`1px solid rgba(16,185,129,0.3)`}} onClick={()=>marcarCobrada(cpc)}>✓ Cobrado</button>}
-                      <button style={{...btn('ghost'),padding:'5px 8px',fontSize:9,color:C.red}} onClick={()=>del('cuentas_por_cobrar',cpc.id,cpc.cliente_nombre)}>🗑</button>
+                      <button style={{...btn('ghost'),padding:'5px 8px',fontSize:9,color:C.red}} onClick={()=>del('cuentas_por_cobrar',cpc.id)}>🗑</button>
                     </div>
                   )
                 })}
@@ -1279,7 +1278,7 @@ export default function App(){
                   </div>
                   <span style={{flex:1,fontSize:11,fontWeight:500,color:t.completada?C.t3:C.t1,textDecoration:t.completada?'line-through':'none'}}>{t.descripcion}</span>
                   <span style={tag(t.categoria)}>{t.categoria==='urg'?'Urgente':t.categoria==='ops'?'Ops':'Fin'}</span>
-                  <button style={{...btn('ghost'),padding:'4px 7px',marginLeft:6,color:C.red}} onClick={()=>del('tareas',t.id,t.descripcion)}>🗑</button>
+                  <button style={{...btn('ghost'),padding:'4px 7px',marginLeft:6,color:C.red}} onClick={()=>del('tareas',t.id)}>🗑</button>
                 </div>
               ))}
               {!tareas.length&&<div style={{padding:40,color:C.t3,textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin tareas</div>}
@@ -1295,7 +1294,7 @@ export default function App(){
           <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:`1px solid ${C.border2}`,borderRadius:16,width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.7)'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
               <div style={{fontFamily:'monospace',fontSize:11,fontWeight:700,letterSpacing:'.08em'}}>
-                {({cliente:'NUEVO CLIENTE',equipo:'NUEVO EQUIPO',finanza:'REGISTRAR MOVIMIENTO',editFinanza:'EDITAR MOVIMIENTO',alerta:'NUEVA ALERTA',tarea:'NUEVA TAREA',cobrar:'CUENTA POR COBRAR',presupuesto:'PRESUPUESTO MENSUAL'})[modal]}
+                {({cliente:'NUEVO CLIENTE',equipo:'NUEVO EQUIPO',finanza:'REGISTRAR MOVIMIENTO',alerta:'NUEVA ALERTA',tarea:'NUEVA TAREA',cobrar:'CUENTA POR COBRAR',presupuesto:'PRESUPUESTO MENSUAL'})[modal]}
               </div>
               <button style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,color:C.t2,width:28,height:28,borderRadius:6,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>{setModal(null);setForm({})}}>×</button>
             </div>
@@ -1385,29 +1384,7 @@ export default function App(){
                 </div>
               </>}
 
-              {modal==='editFinanza'&&<>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Tipo</label><select style={fInput} value={form.tipo||'ingreso'} onChange={e=>setForm({...form,tipo:e.target.value})}><option value="ingreso">Ingreso</option><option value="gasto">Gasto</option></select></div>
-                  <div><label style={fLabel}>Responsable</label><select style={fInput} value={form.responsable||'Joel'} onChange={e=>setForm({...form,responsable:e.target.value})}><option>Joel</option><option>Allan</option></select></div>
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Monto</label><input style={fInput} type="number" value={form.monto||''} onChange={e=>setForm({...form,monto:e.target.value})}/></div>
-                  <div><label style={fLabel}>Moneda</label><select style={fInput} value={form.moneda||'USD'} onChange={e=>setForm({...form,moneda:e.target.value})}><option>USD</option><option>PYG</option><option>BOB</option></select></div>
-                </div>
-                <div style={{marginBottom:12}}><label style={fLabel}>Descripción</label><input style={fInput} value={form.descripcion||''} onChange={e=>setForm({...form,descripcion:e.target.value})}/></div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Categoría</label><select style={fInput} value={form.categoria||'Otro'} onChange={e=>setForm({...form,categoria:e.target.value})}><option>Hosting</option><option>Energía</option><option>Mantenimiento</option><option>BTC</option><option>Salario</option><option>Oficina</option><option>Transporte</option><option>Otro</option></select></div>
-                  <div><label style={fLabel}>País</label><select style={fInput} value={form.pais||'Paraguay'} onChange={e=>setForm({...form,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Otro</option></select></div>
-                  <div><label style={fLabel}>Fecha</label><input style={fInput} type="date" value={form.fecha||''} onChange={e=>setForm({...form,fecha:e.target.value})}/></div>
-                </div>
-                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={form.notas||''} onChange={e=>setForm({...form,notas:e.target.value})}/></div>
-                <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
-                  <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
-                  <button className="btn-gold" style={btn('gold')} onClick={editFinanza}>✓ Guardar cambios</button>
-                </div>
-              </>}
-
-                            {modal==='cobrar'&&<>
+              {modal==='cobrar'&&<>
                 <div style={{marginBottom:12}}><label style={fLabel}>Cliente</label><input style={fInput} placeholder="Nombre del cliente" list="clientes-list" value={form.cliente_nombre||''} onChange={e=>setForm({...form,cliente_nombre:e.target.value})}/>
                   <datalist id="clientes-list">{clientes.map(c=><option key={c.id} value={c.nombre}/>)}</datalist>
                 </div>
