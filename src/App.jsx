@@ -441,6 +441,21 @@ export default function App(){
     }])
     setModal(null);setForm({});fetchAll();toast('Movimiento registrado ✓','success')
   }
+  async function editFinanza(){
+    if(!form.monto||!form.descripcion){toast('Completá los campos','error');return}
+    await supabase.from('finanzas').update({
+      tipo:form.tipo||'ingreso',
+      monto:Number(form.monto),
+      moneda:form.moneda||'USD',
+      descripcion:form.descripcion,
+      categoria:form.categoria||'Otro',
+      fecha:form.fecha||new Date().toISOString().slice(0,10),
+      responsable:form.responsable||'Joel',
+      pais:form.pais||'Paraguay',
+      notas:form.notas||''
+    }).eq('id',form.id)
+    setModal(null);setForm({});fetchAll();toast('Movimiento actualizado ✓','success')
+  }
   async function addCuentaPorCobrar(){
     if(!form.cliente_nombre||!form.monto||!form.fecha_vence){toast('Completá los campos','error');return}
     await supabase.from('cuentas_por_cobrar').insert([{
@@ -482,6 +497,10 @@ export default function App(){
   }
   async function del(table,id){
     await supabase.from(table).delete().eq('id',id);fetchAll();toast('Eliminado','info')
+  }
+  async function confirmarDel(){
+    await del(confirmDel.table,confirmDel.id)
+    setConfirmDel(null)
   }
   async function resolveAlerta(a){
     await supabase.from('finanzas').insert([{tipo:'ingreso',monto:Number(a.monto),moneda:'USD',descripcion:'Pago energía',categoria:'Energía',fecha:new Date().toISOString().slice(0,10),responsable:'Joel',pais:'Paraguay'}])
@@ -1150,7 +1169,7 @@ export default function App(){
                       {f.tipo==='ingreso'?'+':'-'}{money(f.monto,f.moneda||'USD')}
                     </span>
                     <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.t2}} onClick={()=>{setForm({id:f.id,tipo:f.tipo,monto:String(f.monto),moneda:f.moneda||'USD',descripcion:f.descripcion,categoria:f.categoria||'Otro',fecha:f.fecha,responsable:f.responsable||'Joel',pais:f.pais||'Paraguay',notas:f.notas||''});setModal('editFinanza')}}>✏️</button>
-                    <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.red}} onClick={()=>del('finanzas',f.id,f.descripcion)}>🗑</button>
+                    <button style={{...btn('ghost'),padding:'3px 7px',flexShrink:0,color:C.red}} onClick={()=>setConfirmDel({table:'finanzas',id:f.id,desc:f.descripcion})}>🗑</button>
                   </div>
                 ))}
               </div>
@@ -1280,7 +1299,7 @@ export default function App(){
                   </div>
                   <span style={{flex:1,fontSize:11,fontWeight:500,color:t.completada?C.t3:C.t1,textDecoration:t.completada?'line-through':'none'}}>{t.descripcion}</span>
                   <span style={tag(t.categoria)}>{t.categoria==='urg'?'Urgente':t.categoria==='ops'?'Ops':'Fin'}</span>
-                  <button style={{...btn('ghost'),padding:'4px 7px',marginLeft:6,color:C.red}} onClick={()=>del('tareas',t.id,t.descripcion)}>🗑</button>
+                  <button style={{...btn('ghost'),padding:'4px 7px',marginLeft:6,color:C.red}} onClick={()=>setConfirmDel({table:'tareas',id:t.id,desc:t.descripcion})}>🗑</button>
                 </div>
               ))}
               {!tareas.length&&<div style={{padding:40,color:C.t3,textAlign:'center',fontSize:11,textTransform:'uppercase'}}>Sin tareas</div>}
