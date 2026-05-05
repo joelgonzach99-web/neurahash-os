@@ -10,6 +10,17 @@ const btcFmt=n=>Number(n||0).toFixed(8)+' ₿'
 const daysUntil=d=>Math.round((new Date(d)-new Date())/864e5)
 const FEE_OPTIONS=[7.5,10,15,18,20,25]
 
+// Dado una fecha de inicio, calcula el próximo cobro mensual
+function getProximoCobroDesde(fechaInicio){
+  if(!fechaInicio) return null
+  const inicio=new Date(fechaInicio+'T12:00:00')
+  const hoy=new Date()
+  const dia=inicio.getDate()
+  let cobro=new Date(hoy.getFullYear(),hoy.getMonth(),dia)
+  if(cobro<=hoy) cobro.setMonth(cobro.getMonth()+1)
+  return cobro.toISOString().slice(0,10)
+}
+
 function getProximoCobro(diaCobro){
   const hoy=new Date()
   const este=new Date(hoy.getFullYear(),hoy.getMonth(),diaCobro||1)
@@ -21,13 +32,19 @@ function getPeriodo(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
 }
 
-function agruparEquipos(eqArr){
+// Agrupar equipos por modelo+hashrate con fecha_asignacion más temprana del grupo
+function agruparEquipos(eqArr, asignacionesMap={}){
   const grupos={}
   eqArr.forEach(eq=>{
     const key=`${eq.modelo}||${eq.hashrate}`
-    if(!grupos[key]) grupos[key]={...eq,cantidad:0,ids:[]}
+    if(!grupos[key]) grupos[key]={...eq,cantidad:0,ids:[],fechaAsignacion:null}
     grupos[key].cantidad++
     grupos[key].ids.push(eq.id)
+    // Fecha de asignación más temprana del grupo
+    const fa=asignacionesMap[eq.id]
+    if(fa&&(!grupos[key].fechaAsignacion||fa<grupos[key].fechaAsignacion)){
+      grupos[key].fechaAsignacion=fa
+    }
   })
   return Object.values(grupos)
 }
@@ -61,9 +78,7 @@ function useMiningData(){
         const diff = parseFloat(txt)
         if(diff && diff > 1e12) setDifficulty(diff)
         else setDifficulty(109521666870163)
-      }catch{
-        setDifficulty(109521666870163)
-      }
+      }catch{ setDifficulty(109521666870163) }
       setLastUpdate(new Date())
     }catch(e){ console.warn('Mining data fetch error', e) }
     finally{ setLoading(false) }
@@ -116,6 +131,15 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     ;(c.data||[]).forEach(cl=>{ if(cl.hosting_fee_pct) fees[cl.id]=Number(cl.hosting_fee_pct) })
     setFeePcts(prev=>({...fees,...prev}))
     setLoading(false)
+  }
+
+  // Mapa de equipo_id -> fecha_asignacion
+  function getAsignacionesMap(clienteId){
+    const map={}
+    clienteEquipos.filter(ce=>ce.cliente_id===clienteId).forEach(ce=>{
+      map[ce.equipo_id]=ce.fecha_asignacion||null
+    })
+    return map
   }
 
   function getClienteEquiposArr(clienteId){
@@ -203,18 +227,24 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     if(onRefresh)onRefresh()
   }
 
-  // Asignar múltiples equipos del mismo modelo a la vez
+  // Asignar múltiples equipos guardando fecha_asignacion
   async function asignarEquipo(){
     if(!form.equipo_id){toast('Seleccioná un equipo','error');return}
     const grupo=modelosLibres.find(g=>g.ids[0]===form.equipo_id)
     if(!grupo){toast('Equipo no disponible','error');return}
     const cantidad=Number(form.cantidad_asignar)||1
     if(cantidad>grupo.ids.length){toast('No hay suficientes unidades libres','error');return}
+    const fechaHoy=new Date().toISOString().slice(0,10)
+    const fechaAsig=form.fecha_asignacion||fechaHoy
     const idsAAsignar=grupo.ids.slice(0,cantidad)
-    const inserts=idsAAsignar.map(equipoId=>({cliente_id:selected.id,equipo_id:equipoId}))
+    const inserts=idsAAsignar.map(equipoId=>({
+      cliente_id:selected.id,
+      equipo_id:equipoId,
+      fecha_asignacion:fechaAsig
+    }))
     await supabase.from('cliente_equipos').insert(inserts)
     setModal(null);setForm({});fetchData()
-    toast(`${cantidad} equipo${cantidad>1?'s':''} asignado${cantidad>1?'s':''} ✓`,'success')
+    toast(`${cantidad} equipo${cantidad>1?'s':''} asignado${cantidad>1?'s':''} desde ${fechaAsig} ✓`,'success')
     if(onRefresh)onRefresh()
   }
 
@@ -307,7 +337,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
 
   return(
     <div>
-      {/* BTC + Dificultad Banner */}
+      {/* BTC Banner */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,padding:'10px 16px',background:'rgba(247,147,26,0.05)',border:'1px solid rgba(247,147,26,0.15)',borderRadius:10,flexWrap:'wrap',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
           <div style={{display:'flex',alignItems:'center',gap:7}}>
@@ -359,7 +389,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       {tab==='lista'&&<div style={{display:'flex',flexDirection:'column',gap:12}}>
         {clientes.map(c=>{
           const eqArr=getClienteEquiposArr(c.id)
-          const gruposEq=agruparEquipos(eqArr)
+          const asignacionesMap=getAsignacionesMap(c.id)
+          const gruposEq=agruparEquipos(eqArr,asignacionesMap)
           const diasCobro=getDiasAlCobro(c)
           const estadoHosting=getEstadoPago(c)
           const estadoEnergia=getEstadoEnergia(c)
@@ -439,7 +470,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
 
                 <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.03)',border:`1px solid ${C.border}`,borderRadius:7,padding:'6px 12px'}}>
-                    <span style={{fontSize:9,color:C.t3}}>📅 Próximo cobro:</span>
+                    <span style={{fontSize:9,color:C.t3}}>📅 Próximo cobro hosting:</span>
                     {editandoDia===c.id?(
                       <div style={{display:'flex',alignItems:'center',gap:4}}>
                         <input type="number" min="1" max="31" value={diaTemp} onChange={e=>setDiaTemp(e.target.value)}
@@ -467,6 +498,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </div>
 
+              {/* Grid: Equipos / Hosting / Energía */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:0}}>
                 <div style={{padding:'14px 16px',borderRight:`1px solid ${C.border}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
@@ -480,6 +512,10 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     const eqFeeDayTotal=eqBtcDayTotal&&feePct?eqBtcDayTotal*(feePct/100):null
                     const eqEnergiaUnit=calcEnergiaEquipo(Number(grupo.hashrate||0))
                     const eqEnergiaTotal=eqEnergiaUnit*grupo.cantidad
+                    // Próximo cobro de energía basado en fecha de asignación
+                    const proximoCobro=grupo.fechaAsignacion?getProximoCobroDesde(grupo.fechaAsignacion):null
+                    const diasProximo=proximoCobro?daysUntil(proximoCobro):null
+                    const diaDelMes=grupo.fechaAsignacion?new Date(grupo.fechaAsignacion+'T12:00:00').getDate():null
                     return(
                       <div key={i} style={{marginBottom:8,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:`1px solid ${C.border}`}}>
                         <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
@@ -490,9 +526,23 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                           <button style={{background:'none',border:'none',cursor:'pointer',color:C.t3,fontSize:12,padding:'0 2px'}} onClick={()=>desasignarGrupo(c.id,[grupo.ids[grupo.ids.length-1]])} title="Quitar 1">−</button>
                           {grupo.cantidad>1&&<button style={{background:'none',border:'none',cursor:'pointer',color:C.red,fontSize:9,padding:'0 2px',fontFamily:'Inter,sans-serif'}} onClick={()=>desasignarGrupo(c.id,grupo.ids)} title="Quitar todas">✕</button>}
                         </div>
-                        <div style={{paddingLeft:12,display:'flex',gap:10,flexWrap:'wrap'}}>
-                          {eqBtcDayTotal!=null&&<span style={{fontSize:9,fontFamily:'monospace',color:C.orange}}>{btcFmt(eqBtcDayTotal)}/día{eqFeeDayTotal&&<span style={{color:C.t3}}> → fee: {btcFmt(eqFeeDayTotal)}</span>}</span>}
-                          <span style={{fontSize:9,color:C.amber}}>⚡ {money(eqEnergiaTotal)}/mes</span>
+                        <div style={{paddingLeft:12,display:'flex',flexDirection:'column',gap:3}}>
+                          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                            {eqBtcDayTotal!=null&&<span style={{fontSize:9,fontFamily:'monospace',color:C.orange}}>{btcFmt(eqBtcDayTotal)}/día{eqFeeDayTotal&&<span style={{color:C.t3}}> → fee: {btcFmt(eqFeeDayTotal)}</span>}</span>}
+                            <span style={{fontSize:9,color:C.amber}}>⚡ {money(eqEnergiaTotal)}/mes</span>
+                          </div>
+                          {/* Ciclo de cobro de energía */}
+                          {grupo.fechaAsignacion&&(
+                            <div style={{display:'flex',alignItems:'center',gap:5}}>
+                              <span style={{fontSize:8,color:C.t3}}>📅 energía cobra día</span>
+                              <span style={{fontSize:9,fontFamily:'monospace',fontWeight:700,color:C.blue}}>{diaDelMes}</span>
+                              <span style={{fontSize:8,color:C.t3}}>c/mes</span>
+                              {diasProximo!==null&&<span style={{fontSize:8,padding:'1px 5px',borderRadius:5,background:diasProximo<=3?'rgba(244,63,94,0.1)':'rgba(99,102,241,0.1)',color:diasProximo<=3?C.red:C.blue}}>{diasProximo===0?'hoy':`en ${diasProximo}d`}</span>}
+                            </div>
+                          )}
+                          {grupo.fechaAsignacion&&(
+                            <div style={{fontSize:8,color:C.t3}}>desde {grupo.fechaAsignacion}</div>
+                          )}
                         </div>
                       </div>
                     )
@@ -534,6 +584,21 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                       )}
                     </div>
                   </div>
+                  {/* Detalle de energía por grupo con su fecha */}
+                  {gruposEq.length>1&&(
+                    <div style={{marginBottom:8}}>
+                      {gruposEq.map((g,i)=>{
+                        const en=calcEnergiaEquipo(Number(g.hashrate||0))*g.cantidad
+                        const diaG=g.fechaAsignacion?new Date(g.fechaAsignacion+'T12:00:00').getDate():null
+                        return(
+                          <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:8,color:C.t3,padding:'2px 0',borderBottom:`1px solid rgba(255,255,255,0.03)`}}>
+                            <span>{g.modelo.replace('Antminer ','').replace(/\s*\(.*\)/,'')} ×{g.cantidad}{diaG?` · día ${diaG}`:''}</span>
+                            <span style={{color:C.amber,fontFamily:'monospace'}}>{money(en)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                   {energiaTotal>0&&estadoEnergia!=='pagado'&&<button style={{...btn('ghost'),border:`1px solid rgba(245,158,11,0.3)`,color:C.amber}} onClick={()=>marcarPagado(c,'energia')}>✓ Marcar pagado</button>}
                 </div>
               </div>
@@ -636,12 +701,12 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <div><label style={fLabel}>País del cliente</label><SelectPaisCliente val={form.pais} onChange={e=>setForm({...form,pais:e.target.value})}/></div>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" placeholder="15" value={form.dia_cobro||''} onChange={e=>setForm({...form,dia_cobro:e.target.value})}/></div>
+                  <div><label style={fLabel}>Día de cobro hosting (1-31)</label><input style={fInput} type="number" min="1" max="31" placeholder="15" value={form.dia_cobro||''} onChange={e=>setForm({...form,dia_cobro:e.target.value})}/></div>
                   <div><label style={fLabel}>Ubicación de la granja</label><SelectGranja val={form.ubicacion_granja} onChange={e=>setForm({...form,ubicacion_granja:e.target.value})}/></div>
                 </div>
-                <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(247,147,26,0.05)',border:'1px solid rgba(247,147,26,0.15)',borderRadius:8}}>
-                  <div style={{fontSize:10,color:C.orange,fontWeight:600,marginBottom:4}}>ℹ Energía calculada automáticamente</div>
-                  <div style={{fontSize:9,color:C.t3}}>Hydro (≥300TH): $163/mes por máquina · Aire (&lt;300TH): $90/mes por máquina</div>
+                <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(99,102,241,0.05)',border:'1px solid rgba(99,102,241,0.15)',borderRadius:8}}>
+                  <div style={{fontSize:10,color:C.blue,fontWeight:600,marginBottom:4}}>ℹ Energía — ciclo independiente por equipo</div>
+                  <div style={{fontSize:9,color:C.t3}}>Cada equipo cobra energía desde su fecha de asignación. Hydro (≥300TH): $163/mes · Aire: $90/mes</div>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
                   <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={form.fecha_inicio||''} onChange={e=>setForm({...form,fecha_inicio:e.target.value})}/></div>
@@ -662,7 +727,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <div><label style={fLabel}>País del cliente</label><SelectPaisCliente val={editForm.pais} onChange={e=>setEditForm({...editForm,pais:e.target.value})}/></div>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" value={editForm.dia_cobro||''} onChange={e=>setEditForm({...editForm,dia_cobro:e.target.value})}/></div>
+                  <div><label style={fLabel}>Día de cobro hosting (1-31)</label><input style={fInput} type="number" min="1" max="31" value={editForm.dia_cobro||''} onChange={e=>setEditForm({...editForm,dia_cobro:e.target.value})}/></div>
                   <div><label style={fLabel}>Ubicación de la granja</label><SelectGranja val={editForm.ubicacion_granja} onChange={e=>setEditForm({...editForm,ubicacion_granja:e.target.value})}/></div>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -677,7 +742,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </>}
 
-              {/* ASIGNAR EQUIPO — con botones +/- para cantidad */}
+              {/* ASIGNAR EQUIPO con fecha de asignación y botones +/- */}
               {modal==='equipo'&&<>
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:12,color:C.t2,marginBottom:14}}>Asignando equipo a: <strong style={{color:C.t1}}>{selected?.nombre}</strong></div>
@@ -691,8 +756,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                         const eqEnergia=calcEnergiaEquipo(Number(grupo.hashrate||0))
                         const isSelected=form.equipo_id===grupo.ids[0]
                         return(
-                          <div key={i}
-                            onClick={()=>setForm({...form,equipo_id:grupo.ids[0],cantidad_asignar:1})}
+                          <div key={i} onClick={()=>setForm({...form,equipo_id:grupo.ids[0],cantidad_asignar:1})}
                             style={{padding:'10px 14px',borderRadius:8,border:`1px solid ${isSelected?'rgba(247,147,26,0.5)':C.border}`,background:isSelected?'rgba(247,147,26,0.08)':'rgba(255,255,255,0.02)',cursor:'pointer',transition:'all .15s'}}>
                             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                               <span style={{flex:1,fontSize:11,fontWeight:700,color:isSelected?C.orange:C.t1}}>{grupo.modelo}</span>
@@ -710,7 +774,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   )}
                 </div>
 
-                {/* Selector de cantidad con botones +/- */}
+                {/* Cantidad +/- */}
                 {form.equipo_id&&(()=>{
                   const grupo=modelosLibres.find(g=>g.ids[0]===form.equipo_id)
                   const max=grupo?grupo.ids.length:1
@@ -718,23 +782,33 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   const eqEnergia=grupo?calcEnergiaEquipo(Number(grupo.hashrate||0))*qty:0
                   const eqBtcDay=grupo?calcBtcDay(Number(grupo.hashrate||0)):null
                   return(
-                    <div style={{marginBottom:16,padding:'14px 16px',background:'rgba(212,168,67,0.05)',border:'1px solid rgba(212,168,67,0.2)',borderRadius:10}}>
+                    <div style={{marginBottom:14,padding:'14px 16px',background:'rgba(212,168,67,0.05)',border:'1px solid rgba(212,168,67,0.2)',borderRadius:10}}>
                       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
                         <span style={{fontSize:10,color:C.t2,fontWeight:600,flex:1}}>Cantidad a asignar:</span>
                         <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <button
-                            onClick={e=>{e.stopPropagation();setForm({...form,cantidad_asignar:Math.max(1,qty-1)})}}
+                          <button onClick={e=>{e.stopPropagation();setForm({...form,cantidad_asignar:Math.max(1,qty-1)})}}
                             style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border2}`,color:C.t1,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontFamily:'monospace'}}>−</button>
                           <span style={{fontFamily:'monospace',fontSize:22,fontWeight:800,color:C.gold2,minWidth:36,textAlign:'center'}}>{qty}</span>
-                          <button
-                            onClick={e=>{e.stopPropagation();setForm({...form,cantidad_asignar:Math.min(max,qty+1)})}}
+                          <button onClick={e=>{e.stopPropagation();setForm({...form,cantidad_asignar:Math.min(max,qty+1)})}}
                             style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border2}`,color:C.t1,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontFamily:'monospace'}}>+</button>
                         </div>
                         <span style={{fontSize:9,color:C.t3}}>de {max} disponible{max!==1?'s':''}</span>
                       </div>
-                      <div style={{display:'flex',gap:16,fontSize:9,color:C.t3}}>
+                      <div style={{display:'flex',gap:16,fontSize:9,color:C.t3,marginBottom:10}}>
                         {eqBtcDay&&<span>⛏ <span style={{color:C.orange,fontFamily:'monospace'}}>{btcFmt(eqBtcDay*qty)}</span>/día total</span>}
                         <span>⚡ <span style={{color:C.amber}}>{money(eqEnergia)}</span>/mes total</span>
+                      </div>
+                      {/* Fecha de asignación */}
+                      <div>
+                        <label style={{...fLabel,marginBottom:4}}>📅 Fecha de inicio (cobro energía desde este día cada mes)</label>
+                        <input style={fInput} type="date"
+                          value={form.fecha_asignacion||new Date().toISOString().slice(0,10)}
+                          onChange={e=>setForm({...form,fecha_asignacion:e.target.value})}/>
+                        {form.fecha_asignacion&&(
+                          <div style={{fontSize:9,color:C.blue,marginTop:5}}>
+                            💡 Energía se cobrará el día <strong>{new Date(form.fecha_asignacion+'T12:00:00').getDate()}</strong> de cada mes
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -828,7 +902,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
           </div>
         </div>
       </div>
-
       <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:18}}>
         <div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.12em',fontWeight:600,marginBottom:14}}>
           📊 Revenue — {selectedEquipo?selectedEquipo.modelo:`${hashrateUsado||0} TH/s`}
@@ -851,43 +924,39 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
                 </div>
               ))}
             </div>
-            {energiaMes&&(
-              <div style={{marginBottom:14,padding:'10px 14px',background:'rgba(245,158,11,0.04)',border:'1px solid rgba(245,158,11,0.15)',borderRadius:8}}>
-                <div style={{fontSize:9,color:C.amber,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:6}}>Costo Energía / mes</div>
-                <div style={{...num,fontSize:14,color:C.amber}}>{money(energiaMes)}</div>
-                <div style={{fontSize:9,color:C.t3,marginTop:2}}>{Number(selectedEquipo?.hashrate||0)>=300?'Hydro cooling':'Aire'}</div>
+            {energiaMes&&<div style={{marginBottom:14,padding:'10px 14px',background:'rgba(245,158,11,0.04)',border:'1px solid rgba(245,158,11,0.15)',borderRadius:8}}>
+              <div style={{fontSize:9,color:C.amber,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:6}}>Costo Energía / mes</div>
+              <div style={{...num,fontSize:14,color:C.amber}}>{money(energiaMes)}</div>
+              <div style={{fontSize:9,color:C.t3,marginTop:2}}>{Number(selectedEquipo?.hashrate||0)>=300?'Hydro cooling':'Aire'}</div>
+            </div>}
+            {feeSelected>0&&<>
+              <div style={{marginBottom:10,padding:'12px 14px',background:'rgba(247,147,26,0.05)',border:'1px solid rgba(247,147,26,0.15)',borderRadius:8}}>
+                <div style={{fontSize:9,color:C.orange,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:10}}>Fee NeuraHash {feeSelected}%</div>
+                {[
+                  {label:'Fee BTC/día',val:feeDay?btcFmt(feeDay):'—',color:C.orange},
+                  {label:'Fee BTC/mes',val:feeMes?btcFmt(feeMes):'—',color:C.orange},
+                  {label:'Fee USD/mes',val:feeUsdMes?money(feeUsdMes):'—',color:C.gold2},
+                ].map(r=>(
+                  <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:`1px solid rgba(247,147,26,0.08)`}}>
+                    <span style={{fontSize:10,color:C.t3}}>{r.label}</span>
+                    <span style={{...num,fontSize:12,color:r.color}}>{r.val}</span>
+                  </div>
+                ))}
               </div>
-            )}
-            {feeSelected>0&&(
-              <>
-                <div style={{marginBottom:10,padding:'12px 14px',background:'rgba(247,147,26,0.05)',border:'1px solid rgba(247,147,26,0.15)',borderRadius:8}}>
-                  <div style={{fontSize:9,color:C.orange,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:10}}>Fee NeuraHash {feeSelected}%</div>
-                  {[
-                    {label:'Fee BTC/día',val:feeDay?btcFmt(feeDay):'—',color:C.orange},
-                    {label:'Fee BTC/mes',val:feeMes?btcFmt(feeMes):'—',color:C.orange},
-                    {label:'Fee USD/mes',val:feeUsdMes?money(feeUsdMes):'—',color:C.gold2},
-                  ].map(r=>(
-                    <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:`1px solid rgba(247,147,26,0.08)`}}>
-                      <span style={{fontSize:10,color:C.t3}}>{r.label}</span>
-                      <span style={{...num,fontSize:12,color:r.color}}>{r.val}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{padding:'12px 14px',background:'rgba(16,185,129,0.04)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8}}>
-                  <div style={{fontSize:9,color:C.green,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:10}}>Cliente recibe</div>
-                  {[
-                    {label:'BTC/día neto',val:clienteDay?btcFmt(clienteDay):'—'},
-                    {label:'BTC/mes neto',val:clienteMes?btcFmt(clienteMes):'—'},
-                    {label:'USD/mes neto',val:clienteMes&&precioUsado?money(clienteMes*precioUsado):'—'},
-                  ].map(r=>(
-                    <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:`1px solid rgba(16,185,129,0.08)`}}>
-                      <span style={{fontSize:10,color:C.t3}}>{r.label}</span>
-                      <span style={{...num,fontSize:12,color:C.green}}>{r.val}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+              <div style={{padding:'12px 14px',background:'rgba(16,185,129,0.04)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8}}>
+                <div style={{fontSize:9,color:C.green,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:10}}>Cliente recibe</div>
+                {[
+                  {label:'BTC/día neto',val:clienteDay?btcFmt(clienteDay):'—'},
+                  {label:'BTC/mes neto',val:clienteMes?btcFmt(clienteMes):'—'},
+                  {label:'USD/mes neto',val:clienteMes&&precioUsado?money(clienteMes*precioUsado):'—'},
+                ].map(r=>(
+                  <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:`1px solid rgba(16,185,129,0.08)`}}>
+                    <span style={{fontSize:10,color:C.t3}}>{r.label}</span>
+                    <span style={{...num,fontSize:12,color:C.green}}>{r.val}</span>
+                  </div>
+                ))}
+              </div>
+            </>}
             {difficulty&&<div style={{marginTop:10,fontSize:9,color:C.t3,textAlign:'right'}}>Dificultad: {(difficulty/1e12).toFixed(2)}T · FPPS</div>}
           </>
         )}
