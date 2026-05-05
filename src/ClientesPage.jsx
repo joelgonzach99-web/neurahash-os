@@ -647,11 +647,20 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       {tab==='calc'&&<CalculadoraTab equipos={equipos} btcPrice={btcPrice} calcBtcDay={calcBtcDay} difficulty={difficulty} C={C} num={num} money={money} btcFmt={btcFmt} btn={btn}/>}
 
       {tab==='pagos'&&<div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:14}}>
           {[
             {label:'Hosting cobrado este mes',val:money(pagos.filter(p=>p.tipo==='hosting'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0)),color:C.green},
             {label:'Energía cobrada este mes',val:money(pagos.filter(p=>p.tipo==='energia'&&p.estado==='pagado'&&p.periodo===getPeriodo()).reduce((a,b)=>a+Number(b.monto),0)),color:C.amber},
-            {label:'Pendiente (hosting + energía)',val:money(clientes.reduce((a,c)=>{
+            {label:'Pendiente hosting',val:money(clientes.reduce((a,c)=>{
+              const{usdMesFee,feePct,btcMesFee}=calcClienteFee(c)
+              const hostingUsd=feePct>0&&usdMesFee?usdMesFee:(feePct>0&&btcMesFee&&btcPrice?btcMesFee*btcPrice:Number(c.tarifa_mensual)||0)
+              return a+(getEstadoPago(c)!=='pagado'?hostingUsd:0)
+            },0)),color:C.orange},
+            {label:'Pendiente energía',val:money(clientes.reduce((a,c)=>{
+              const energiaTotal=calcEnergiaTotal(c)
+              return a+(getEstadoEnergia(c)!=='pagado'?energiaTotal:0)
+            },0)),color:C.amber},
+            {label:'Total pendiente',val:money(clientes.reduce((a,c)=>{
               const{usdMesFee,feePct,btcMesFee}=calcClienteFee(c)
               const energiaTotal=calcEnergiaTotal(c)
               const hostingUsd=feePct>0&&usdMesFee?usdMesFee:(feePct>0&&btcMesFee&&btcPrice?btcMesFee*btcPrice:Number(c.tarifa_mensual)||0)
