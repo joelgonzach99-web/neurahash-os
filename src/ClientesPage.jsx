@@ -21,6 +21,18 @@ function getPeriodo(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
 }
 
+// Agrupar equipos por modelo+hashrate y contar cantidad
+function agruparEquipos(eqArr){
+  const grupos={}
+  eqArr.forEach(eq=>{
+    const key=`${eq.modelo}||${eq.hashrate}`
+    if(!grupos[key]) grupos[key]={...eq,cantidad:0,ids:[]}
+    grupos[key].cantidad++
+    grupos[key].ids.push(eq.id)
+  })
+  return Object.values(grupos)
+}
+
 function useMiningData(){
   const [btcPrice, setBtcPrice] = useState(null)
   const [difficulty, setDifficulty] = useState(null)
@@ -179,19 +191,14 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   async function addCliente(){
     if(!form.nombre){toast('Nombre requerido','error');return}
     await supabase.from('clientes').insert([{
-      nombre:form.nombre,
-      contacto:form.contacto||'',
-      pais:form.pais||'Paraguay',
+      nombre:form.nombre,contacto:form.contacto||'',pais:form.pais||'Paraguay',
       ubicacion_granja:form.ubicacion_granja||'Paraguay',
-      tarifa_mensual:0,
-      unidades_asic:1,
+      tarifa_mensual:0,unidades_asic:1,
       dia_cobro:Number(form.dia_cobro)||1,
       fecha_inicio:form.fecha_inicio||new Date().toISOString().slice(0,10),
       fecha_vence_contrato:form.fecha_vence_contrato||null,
-      costo_energia:0,
-      notas:form.notas||'',
-      pool_url:form.pool_url||null,
-      estado:'activo'
+      costo_energia:0,notas:form.notas||'',
+      pool_url:form.pool_url||null,estado:'activo'
     }])
     setModal(null);setForm({});fetchData();toast('Cliente agregado ✓','success')
     if(onRefresh)onRefresh()
@@ -205,9 +212,12 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     setModal(null);setForm({});fetchData();toast('Equipo asignado ✓','success')
   }
 
-  async function desasignarEquipo(clienteId,equipoId){
-    await supabase.from('cliente_equipos').delete().eq('cliente_id',clienteId).eq('equipo_id',equipoId)
-    fetchData();toast('Equipo removido','info')
+  async function desasignarGrupo(clienteId, ids){
+    // Desasignar todas las máquinas de un grupo (o una sola si ids tiene 1 elemento)
+    await Promise.all(ids.map(equipoId=>
+      supabase.from('cliente_equipos').delete().eq('cliente_id',clienteId).eq('equipo_id',equipoId)
+    ))
+    fetchData();toast('Equipo(s) removido(s)','info')
   }
 
   async function marcarPagado(cliente,tipo){
@@ -228,15 +238,13 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   function iniciarEdicion(cliente){
     setEditando(cliente.id)
     setEditForm({
-      nombre:cliente.nombre,
-      contacto:cliente.contacto||'',
+      nombre:cliente.nombre,contacto:cliente.contacto||'',
       pais:cliente.pais||'Paraguay',
       ubicacion_granja:cliente.ubicacion_granja||'Paraguay',
       dia_cobro:cliente.dia_cobro||1,
       fecha_inicio:cliente.fecha_inicio||'',
       fecha_vence_contrato:cliente.fecha_vence_contrato||'',
-      notas:cliente.notas||'',
-      pool_url:cliente.pool_url||''
+      notas:cliente.notas||'',pool_url:cliente.pool_url||''
     })
     setModal('editar')
   }
@@ -244,15 +252,13 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   async function guardarEdicion(){
     if(!editForm.nombre){toast('Nombre requerido','error');return}
     await supabase.from('clientes').update({
-      nombre:editForm.nombre,
-      contacto:editForm.contacto||'',
+      nombre:editForm.nombre,contacto:editForm.contacto||'',
       pais:editForm.pais||'Paraguay',
       ubicacion_granja:editForm.ubicacion_granja||'Paraguay',
       dia_cobro:Number(editForm.dia_cobro)||1,
       fecha_inicio:editForm.fecha_inicio||null,
       fecha_vence_contrato:editForm.fecha_vence_contrato||null,
-      notas:editForm.notas||'',
-      pool_url:editForm.pool_url||null
+      notas:editForm.notas||'',pool_url:editForm.pool_url||null
     }).eq('id',editando)
     setModal(null);setEditando(null);setEditForm({})
     fetchData();toast('Cliente actualizado ✓','success')
@@ -276,23 +282,22 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:8,padding:'10px 13px',color:C.t1,fontFamily:'Inter,sans-serif',fontSize:12,outline:'none',boxSizing:'border-box'}
   const fLabel={display:'block',fontSize:9,letterSpacing:'.15em',textTransform:'uppercase',color:C.t3,marginBottom:6,fontWeight:600}
 
-  // Selector paises cliente
-  const SelectPaisCliente = ({val,onChange})=>(
+  const SelectPaisCliente=({val,onChange})=>(
     <select style={fInput} value={val||'Paraguay'} onChange={onChange}>
-      <option>Paraguay</option>
-      <option>Bolivia</option>
-      <option>Argentina</option>
-      <option>Estados Unidos</option>
-      <option>Otro</option>
+      <option>Paraguay</option><option>Bolivia</option><option>Argentina</option>
+      <option>Estados Unidos</option><option>Otro</option>
     </select>
   )
-  // Selector ubicacion granja (solo Paraguay/Bolivia)
-  const SelectGranja = ({val,onChange})=>(
+  const SelectGranja=({val,onChange})=>(
     <select style={fInput} value={val||'Paraguay'} onChange={onChange}>
-      <option>Paraguay</option>
-      <option>Bolivia</option>
+      <option>Paraguay</option><option>Bolivia</option>
     </select>
   )
+
+  // Equipos libres agrupados por modelo para el selector de asignación
+  const equiposAsignadosIds = clienteEquipos.map(ce=>ce.equipo_id)
+  const equiposLibres = equipos.filter(e=>e.estado==='activo'&&!equiposAsignadosIds.includes(e.id))
+  const modelosLibres = agruparEquipos(equiposLibres)
 
   if(loading)return <div style={{padding:40,textAlign:'center',color:C.t3,fontSize:11}}>Cargando...</div>
 
@@ -350,6 +355,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       {tab==='lista'&&<div style={{display:'flex',flexDirection:'column',gap:12}}>
         {clientes.map(c=>{
           const eqArr=getClienteEquiposArr(c.id)
+          const gruposEq=agruparEquipos(eqArr)
           const diasCobro=getDiasAlCobro(c)
           const estadoHosting=getEstadoPago(c)
           const estadoEnergia=getEstadoEnergia(c)
@@ -363,14 +369,19 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
           return(
             <div key={c.id} style={{...panel,border:`1px solid ${vencido&&estadoHosting!=='pagado'?'rgba(244,63,94,0.3)':urgente&&estadoHosting!=='pagado'?'rgba(245,158,11,0.2)':C.border}`}}>
               <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.border}`}}>
+                {/* Fila 1: avatar + nombre + monto + botones */}
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
                   <div style={{width:40,height:40,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.5),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#000',flexShrink:0}}>{initials(c.nombre)}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:15,fontWeight:700}}>{c.nombre}</div>
-                    <div style={{fontSize:10,color:C.t3,marginTop:2}}>
-                      {c.pais} · {equipCount} equipo{equipCount!==1?'s':''} · {totalTH} TH/s
-                      {c.ubicacion_granja&&<span style={{marginLeft:6,padding:'1px 7px',borderRadius:8,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)',fontSize:9}}>🏭 {c.ubicacion_granja}</span>}
-                      {c.contacto&&` · ${c.contacto}`}
+                    <div style={{fontSize:10,color:C.t3,marginTop:2,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                      <span>{c.pais}</span>
+                      <span>·</span>
+                      <span>{equipCount} equipo{equipCount!==1?'s':''}</span>
+                      <span>·</span>
+                      <span>{totalTH} TH/s</span>
+                      {c.ubicacion_granja&&<span style={{padding:'1px 7px',borderRadius:8,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)',fontSize:9}}>🏭 {c.ubicacion_granja}</span>}
+                      {c.contacto&&<span>· {c.contacto}</span>}
                     </div>
                   </div>
                   <div style={{textAlign:'right',flexShrink:0}}>
@@ -388,8 +399,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     )}
                     {energiaTotal>0&&<div style={{fontSize:10,color:C.amber,marginTop:3}}>⚡ {money(energiaTotal)}/mes energía</div>}
                   </div>
-                  <button style={{...btn('ghost'),padding:'5px 9px',flexShrink:0}} onClick={()=>iniciarEdicion(c)} title="Editar cliente">✏️</button>
-                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id,c.nombre)} title="Eliminar cliente">🗑</button>
+                  <button style={{...btn('ghost'),padding:'5px 9px',flexShrink:0}} onClick={()=>iniciarEdicion(c)} title="Editar">✏️</button>
+                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id,c.nombre)} title="Eliminar">🗑</button>
                 </div>
 
                 {/* Selector de fee % */}
@@ -408,7 +419,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   {hasFee&&<button onClick={()=>setFee(c.id,0)} style={{padding:'4px 9px',borderRadius:6,border:`1px solid ${C.border}`,background:'none',cursor:'pointer',fontSize:10,color:C.t3,fontFamily:'Inter,sans-serif'}}>✕</button>}
                 </div>
 
-                {/* BTC producción breakdown */}
+                {/* BTC producción */}
                 {equipCount>0&&btcDiaTotal!=null?(
                   <div style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',background:'rgba(247,147,26,0.04)',border:'1px solid rgba(247,147,26,0.1)',borderRadius:8,flexWrap:'wrap',marginBottom:10}}>
                     <div style={{display:'flex',alignItems:'center',gap:5}}>
@@ -462,27 +473,33 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
 
               {/* Grid: Equipos / Hosting / Energía */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:0}}>
+                {/* EQUIPOS — agrupados por modelo */}
                 <div style={{padding:'14px 16px',borderRight:`1px solid ${C.border}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                     <span style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:600}}>⛏ Equipos</span>
                     <button style={btn('ghost')} onClick={()=>{setSelected(c);setModal('equipo')}}>+ Asignar</button>
                   </div>
-                  {eqArr.length===0&&<div style={{fontSize:10,color:C.t3,fontStyle:'italic'}}>Sin equipos</div>}
-                  {eqArr.map(eq=>{
-                    const eqBtcDay=calcBtcDay(Number(eq.hashrate||0))
-                    const eqFeeDay=eqBtcDay&&feePct?eqBtcDay*(feePct/100):null
-                    const eqEnergia=calcEnergiaEquipo(Number(eq.hashrate||0))
+                  {gruposEq.length===0&&<div style={{fontSize:10,color:C.t3,fontStyle:'italic'}}>Sin equipos</div>}
+                  {gruposEq.map((grupo,i)=>{
+                    const eqBtcDayUnit=calcBtcDay(Number(grupo.hashrate||0))
+                    const eqBtcDayTotal=eqBtcDayUnit?eqBtcDayUnit*grupo.cantidad:null
+                    const eqFeeDayTotal=eqBtcDayTotal&&feePct?eqBtcDayTotal*(feePct/100):null
+                    const eqEnergiaUnit=calcEnergiaEquipo(Number(grupo.hashrate||0))
+                    const eqEnergiaTotal=eqEnergiaUnit*grupo.cantidad
                     return(
-                      <div key={eq.id} style={{marginBottom:7,padding:'7px 10px',background:'rgba(255,255,255,0.03)',borderRadius:7}}>
-                        <div style={{display:'flex',alignItems:'center',gap:6}}>
-                          <span style={{width:6,height:6,borderRadius:'50%',background:eq.estado==='activo'?C.green:C.amber,flexShrink:0}}/>
-                          <span style={{flex:1,fontSize:10,fontWeight:600}}>{eq.modelo}</span>
-                          <span style={{...num,fontSize:10,color:C.gold2}}>{eq.hashrate}TH</span>
-                          <button style={{background:'none',border:'none',cursor:'pointer',color:C.t3,fontSize:12,padding:'0 2px'}} onClick={()=>desasignarEquipo(c.id,eq.id)}>×</button>
+                      <div key={i} style={{marginBottom:8,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:`1px solid ${C.border}`}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                          <span style={{width:6,height:6,borderRadius:'50%',background:grupo.estado==='activo'?C.green:C.amber,flexShrink:0}}/>
+                          <span style={{flex:1,fontSize:10,fontWeight:600}}>{grupo.modelo}</span>
+                          {/* Cantidad badge */}
+                          <span style={{background:'rgba(212,168,67,0.15)',border:`1px solid rgba(212,168,67,0.3)`,borderRadius:6,padding:'2px 8px',fontFamily:'monospace',fontSize:11,fontWeight:700,color:C.gold2}}>×{grupo.cantidad}</span>
+                          <span style={{...num,fontSize:10,color:C.t2}}>{grupo.hashrate}TH</span>
+                          <button style={{background:'none',border:'none',cursor:'pointer',color:C.t3,fontSize:12,padding:'0 2px'}} onClick={()=>desasignarGrupo(c.id,[grupo.ids[grupo.ids.length-1]])} title="Quitar 1 unidad">−</button>
+                          {grupo.cantidad>1&&<button style={{background:'none',border:'none',cursor:'pointer',color:C.red,fontSize:9,padding:'0 2px',fontFamily:'Inter,sans-serif'}} onClick={()=>desasignarGrupo(c.id,grupo.ids)} title="Quitar todas">✕</button>}
                         </div>
-                        <div style={{paddingLeft:12,marginTop:3,display:'flex',gap:8,flexWrap:'wrap'}}>
-                          {eqBtcDay!=null&&<span style={{fontSize:9,fontFamily:'monospace',color:C.orange}}>{btcFmt(eqBtcDay)}/día{eqFeeDay&&<span style={{color:C.t3}}> → {btcFmt(eqFeeDay)}</span>}</span>}
-                          <span style={{fontSize:9,color:C.amber}}>⚡ {money(eqEnergia)}/mes</span>
+                        <div style={{paddingLeft:12,display:'flex',gap:10,flexWrap:'wrap'}}>
+                          {eqBtcDayTotal!=null&&<span style={{fontSize:9,fontFamily:'monospace',color:C.orange}}>{btcFmt(eqBtcDayTotal)}/día{eqFeeDayTotal&&<span style={{color:C.t3}}> → fee: {btcFmt(eqFeeDayTotal)}</span>}</span>}
+                          <span style={{fontSize:9,color:C.amber}}>⚡ {money(eqEnergiaTotal)}/mes</span>
                         </div>
                       </div>
                     )
@@ -626,7 +643,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
             </div>
             <div style={{padding:20}}>
 
-              {/* ─── NUEVO CLIENTE ─── */}
+              {/* NUEVO CLIENTE */}
               {modal==='cliente'&&<>
                 <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} placeholder="Ej: Carlos Reyes" value={form.nombre||''} onChange={e=>setForm({...form,nombre:e.target.value})}/></div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -653,7 +670,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </>}
 
-              {/* ─── EDITAR CLIENTE ─── */}
+              {/* EDITAR CLIENTE */}
               {modal==='editar'&&<>
                 <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} value={editForm.nombre||''} onChange={e=>setEditForm({...editForm,nombre:e.target.value})}/></div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
@@ -676,19 +693,40 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </>}
 
-              {/* ─── ASIGNAR EQUIPO ─── */}
+              {/* ASIGNAR EQUIPO — agrupado por modelo, muestra unidades libres */}
               {modal==='equipo'&&<>
-                <div style={{marginBottom:12}}>
-                  <div style={{fontSize:12,color:C.t2,marginBottom:12}}>Asignando equipo a: <strong style={{color:C.t1}}>{selected?.nombre}</strong></div>
-                  <label style={fLabel}>Seleccionar equipo</label>
-                  <select style={fInput} value={form.equipo_id||''} onChange={e=>setForm({...form,equipo_id:e.target.value})}>
-                    <option value="">— Seleccioná un equipo —</option>
-                    {equipos.map(eq=><option key={eq.id} value={eq.id}>{eq.modelo} — {eq.hashrate}TH/s ({eq.estado})</option>)}
-                  </select>
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:12,color:C.t2,marginBottom:14}}>Asignando equipo a: <strong style={{color:C.t1}}>{selected?.nombre}</strong></div>
+                  <label style={fLabel}>Seleccionar modelo</label>
+                  {modelosLibres.length===0?(
+                    <div style={{fontSize:11,color:C.t3,fontStyle:'italic',padding:'12px 0'}}>No hay equipos libres disponibles</div>
+                  ):(
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                      {modelosLibres.map((grupo,i)=>{
+                        const eqBtcDay=calcBtcDay(Number(grupo.hashrate||0))
+                        const eqEnergia=calcEnergiaEquipo(Number(grupo.hashrate||0))
+                        const isSelected=form.equipo_id===grupo.ids[0]
+                        return(
+                          <button key={i} onClick={()=>setForm({...form,equipo_id:grupo.ids[0]})}
+                            style={{padding:'10px 14px',borderRadius:8,textAlign:'left',border:`1px solid ${isSelected?'rgba(247,147,26,0.5)':C.border}`,background:isSelected?'rgba(247,147,26,0.08)':'rgba(255,255,255,0.02)',cursor:'pointer',fontFamily:'Inter,sans-serif',transition:'all .15s'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                              <span style={{flex:1,fontSize:11,fontWeight:700,color:isSelected?C.orange:C.t1}}>{grupo.modelo}</span>
+                              <span style={{background:'rgba(212,168,67,0.15)',border:`1px solid rgba(212,168,67,0.3)`,borderRadius:6,padding:'2px 10px',fontFamily:'monospace',fontSize:12,fontWeight:700,color:C.gold2}}>{grupo.cantidad} libre{grupo.cantidad!==1?'s':''}</span>
+                              <span style={{...num,fontSize:11,color:C.t2}}>{grupo.hashrate} TH/s</span>
+                            </div>
+                            <div style={{display:'flex',gap:12,paddingLeft:0}}>
+                              {eqBtcDay&&<span style={{fontSize:9,fontFamily:'monospace',color:C.orange}}>{btcFmt(eqBtcDay)}/día por unidad</span>}
+                              <span style={{fontSize:9,color:C.amber}}>⚡ {money(eqEnergia)}/mes</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({});setSelected(null)}}>Cancelar</button>
-                  <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={asignarEquipo}>✓ Asignar</button>
+                  <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={asignarEquipo} disabled={!form.equipo_id}>✓ Asignar</button>
                 </div>
               </>}
 
