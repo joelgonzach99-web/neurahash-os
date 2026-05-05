@@ -186,7 +186,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       tarifa_mensual:Number(form.tarifa_mensual)||0,unidades_asic:Number(form.unidades_asic)||1,
       dia_cobro:Number(form.dia_cobro)||1,fecha_inicio:form.fecha_inicio||new Date().toISOString().slice(0,10),
       fecha_vence_contrato:form.fecha_vence_contrato||null,costo_energia:0,
-      notas:form.notas||'',estado:'activo'
+      notas:form.notas||'',pool_url:form.pool_url||null,estado:'activo'
     }])
     setModal(null);setForm({});fetchData();toast('Cliente agregado ✓','success')
     if(onRefresh)onRefresh()
@@ -231,7 +231,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       dia_cobro:cliente.dia_cobro||1,
       fecha_inicio:cliente.fecha_inicio||'',
       fecha_vence_contrato:cliente.fecha_vence_contrato||'',
-      notas:cliente.notas||''
+      notas:cliente.notas||'',pool_url:cliente.pool_url||''
     })
     setModal('editar')
   }
@@ -245,7 +245,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       dia_cobro:Number(editForm.dia_cobro)||1,
       fecha_inicio:editForm.fecha_inicio||null,
       fecha_vence_contrato:editForm.fecha_vence_contrato||null,
-      notas:editForm.notas||''
+      notas:editForm.notas||'',pool_url:editForm.pool_url||null
     }).eq('id',editando)
     setModal(null);setEditando(null);setEditForm({})
     fetchData();toast('Cliente actualizado ✓','success')
@@ -427,6 +427,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     {estadoEnergia==='pagado'?'✅ Energía pagada':'⚡ Energía pendiente'}
                   </span>
                   <button style={{...btn('wa'),padding:'6px 12px',fontSize:10}} onClick={()=>abrirWhatsApp(c)}>📲 WhatsApp</button>
+                  {c.pool_url&&<button style={{...btn('orange'),padding:'6px 12px',fontSize:10}} onClick={()=>window.open(c.pool_url,'_blank')}>⛏ Ver Pool</button>}
                 </div>
               </div>
 
@@ -611,7 +612,9 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={form.fecha_inicio||''} onChange={e=>setForm({...form,fecha_inicio:e.target.value})}/></div>
                   <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={form.fecha_vence_contrato||''} onChange={e=>setForm({...form,fecha_vence_contrato:e.target.value})}/></div>
                 </div>
-                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} placeholder="Observaciones..." value={form.notas||''} onChange={e=>setForm({...form,notas:e.target.value})}/></div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={editForm.notas||''} onChange={e=>setEditForm({...editForm,notas:e.target.value})}/></div>
+<div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} placeholder="Observaciones..." value={form.notas||''} onChange={e=>setForm({...form,notas:e.target.value})}/></div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Link del Pool (f2pool, etc)</label><input style={fInput} placeholder="https://f2pool.com/mining-user/..." value={form.pool_url||''} onChange={e=>setForm({...form,pool_url:e.target.value})}/></div>
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
                   <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={addCliente}>✓ Guardar</button>
@@ -629,6 +632,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={editForm.fecha_vence_contrato||''} onChange={e=>setEditForm({...editForm,fecha_vence_contrato:e.target.value})}/></div>
                 </div>
                 <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={editForm.notas||''} onChange={e=>setEditForm({...editForm,notas:e.target.value})}/></div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Link del Pool (f2pool, etc)</label><input style={fInput} placeholder="https://f2pool.com/mining-user/..." value={editForm.pool_url||''} onChange={e=>setEditForm({...editForm,pool_url:e.target.value})}/></div>
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setEditando(null);setEditForm({})}}>Cancelar</button>
                   <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={guardarEdicion}>✓ Guardar cambios</button>
