@@ -8,7 +8,7 @@ const initials=n=>n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase(
 const money=n=>'$'+Number(n||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})
 const btcFmt=n=>Number(n||0).toFixed(8)+' ₿'
 const daysUntil=d=>Math.round((new Date(d)-new Date())/864e5)
-const FEE_OPTIONS=[10,15,18,20,25]
+const FEE_OPTIONS=[7.5,10,15,18,20,25]
 
 function getProximoCobro(diaCobro){
   const hoy=new Date()
@@ -127,8 +127,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     return daysUntil(getProximoCobro(cliente.dia_cobro))
   }
 
-  // ─── ENERGÍA AUTOMÁTICA por hashrate ───
-  // Hydro (≥300TH): $163/mes · Aire (<300TH): $90/mes
   function calcEnergiaEquipo(hashrate){
     return Number(hashrate||0) >= 300 ? 163 : 90
   }
@@ -138,7 +136,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     return equiposC.reduce((a,e)=>a+calcEnergiaEquipo(Number(e.hashrate||0)),0)
   }
 
-  // ─── FEE HOSTING en BTC ───
   function calcClienteFee(cliente){
     const equiposC = getClienteEquiposArr(cliente.id)
     const totalTH = equiposC.reduce((a,e)=>a+Number(e.hashrate||0),0)
@@ -182,11 +179,19 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   async function addCliente(){
     if(!form.nombre){toast('Nombre requerido','error');return}
     await supabase.from('clientes').insert([{
-      nombre:form.nombre,contacto:form.contacto||'',pais:form.pais||'Paraguay',
-      tarifa_mensual:Number(form.tarifa_mensual)||0,unidades_asic:Number(form.unidades_asic)||1,
-      dia_cobro:Number(form.dia_cobro)||1,fecha_inicio:form.fecha_inicio||new Date().toISOString().slice(0,10),
-      fecha_vence_contrato:form.fecha_vence_contrato||null,costo_energia:0,
-      notas:form.notas||'',pool_url:form.pool_url||null,estado:'activo'
+      nombre:form.nombre,
+      contacto:form.contacto||'',
+      pais:form.pais||'Paraguay',
+      ubicacion_granja:form.ubicacion_granja||'Paraguay',
+      tarifa_mensual:0,
+      unidades_asic:1,
+      dia_cobro:Number(form.dia_cobro)||1,
+      fecha_inicio:form.fecha_inicio||new Date().toISOString().slice(0,10),
+      fecha_vence_contrato:form.fecha_vence_contrato||null,
+      costo_energia:0,
+      notas:form.notas||'',
+      pool_url:form.pool_url||null,
+      estado:'activo'
     }])
     setModal(null);setForm({});fetchData();toast('Cliente agregado ✓','success')
     if(onRefresh)onRefresh()
@@ -209,8 +214,6 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     const periodo=getPeriodo()
     const {usdMesFee,feePct}=calcClienteFee(cliente)
     const energiaTotal=calcEnergiaTotal(cliente)
-    // Hosting: usa fee BTC en USD si está configurado, si no tarifa_mensual
-    // Energía: usa el cálculo automático por hashrate
     const monto=tipo==='hosting'
       ?(feePct>0&&usdMesFee?usdMesFee:Number(cliente.tarifa_mensual)||0)
       :energiaTotal
@@ -228,10 +231,12 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       nombre:cliente.nombre,
       contacto:cliente.contacto||'',
       pais:cliente.pais||'Paraguay',
+      ubicacion_granja:cliente.ubicacion_granja||'Paraguay',
       dia_cobro:cliente.dia_cobro||1,
       fecha_inicio:cliente.fecha_inicio||'',
       fecha_vence_contrato:cliente.fecha_vence_contrato||'',
-      notas:cliente.notas||'',pool_url:cliente.pool_url||''
+      notas:cliente.notas||'',
+      pool_url:cliente.pool_url||''
     })
     setModal('editar')
   }
@@ -242,10 +247,12 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
       nombre:editForm.nombre,
       contacto:editForm.contacto||'',
       pais:editForm.pais||'Paraguay',
+      ubicacion_granja:editForm.ubicacion_granja||'Paraguay',
       dia_cobro:Number(editForm.dia_cobro)||1,
       fecha_inicio:editForm.fecha_inicio||null,
       fecha_vence_contrato:editForm.fecha_vence_contrato||null,
-      notas:editForm.notas||'',pool_url:editForm.pool_url||null
+      notas:editForm.notas||'',
+      pool_url:editForm.pool_url||null
     }).eq('id',editando)
     setModal(null);setEditando(null);setEditForm({})
     fetchData();toast('Cliente actualizado ✓','success')
@@ -268,6 +275,24 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   })
   const fInput={width:'100%',background:'rgba(255,255,255,0.04)',border:`1px solid ${C.border2}`,borderRadius:8,padding:'10px 13px',color:C.t1,fontFamily:'Inter,sans-serif',fontSize:12,outline:'none',boxSizing:'border-box'}
   const fLabel={display:'block',fontSize:9,letterSpacing:'.15em',textTransform:'uppercase',color:C.t3,marginBottom:6,fontWeight:600}
+
+  // Selector paises cliente
+  const SelectPaisCliente = ({val,onChange})=>(
+    <select style={fInput} value={val||'Paraguay'} onChange={onChange}>
+      <option>Paraguay</option>
+      <option>Bolivia</option>
+      <option>Argentina</option>
+      <option>Estados Unidos</option>
+      <option>Otro</option>
+    </select>
+  )
+  // Selector ubicacion granja (solo Paraguay/Bolivia)
+  const SelectGranja = ({val,onChange})=>(
+    <select style={fInput} value={val||'Paraguay'} onChange={onChange}>
+      <option>Paraguay</option>
+      <option>Bolivia</option>
+    </select>
+  )
 
   if(loading)return <div style={{padding:40,textAlign:'center',color:C.t3,fontSize:11}}>Cargando...</div>
 
@@ -338,12 +363,15 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
           return(
             <div key={c.id} style={{...panel,border:`1px solid ${vencido&&estadoHosting!=='pagado'?'rgba(244,63,94,0.3)':urgente&&estadoHosting!=='pagado'?'rgba(245,158,11,0.2)':C.border}`}}>
               <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.border}`}}>
-                {/* Fila 1: avatar + nombre + monto + delete */}
                 <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
                   <div style={{width:40,height:40,borderRadius:'50%',background:`linear-gradient(135deg,rgba(212,168,67,0.5),${C.gold})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#000',flexShrink:0}}>{initials(c.nombre)}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:15,fontWeight:700}}>{c.nombre}</div>
-                    <div style={{fontSize:10,color:C.t3,marginTop:2}}>{c.pais} · {equipCount} equipo{equipCount!==1?'s':''} · {totalTH} TH/s{c.contacto?` · ${c.contacto}`:''}</div>
+                    <div style={{fontSize:10,color:C.t3,marginTop:2}}>
+                      {c.pais} · {equipCount} equipo{equipCount!==1?'s':''} · {totalTH} TH/s
+                      {c.ubicacion_granja&&<span style={{marginLeft:6,padding:'1px 7px',borderRadius:8,background:'rgba(99,102,241,0.1)',color:C.blue,border:'1px solid rgba(99,102,241,0.2)',fontSize:9}}>🏭 {c.ubicacion_granja}</span>}
+                      {c.contacto&&` · ${c.contacto}`}
+                    </div>
                   </div>
                   <div style={{textAlign:'right',flexShrink:0}}>
                     {hasFee&&btcMesFee?(
@@ -360,8 +388,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     )}
                     {energiaTotal>0&&<div style={{fontSize:10,color:C.amber,marginTop:3}}>⚡ {money(energiaTotal)}/mes energía</div>}
                   </div>
-                  <button style={{...btn('ghost'),padding:'5px 9px',flexShrink:0}} onClick={()=>iniciarEdicion(c)}>✏️</button>
-                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id,c.nombre)}>🗑</button>
+                  <button style={{...btn('ghost'),padding:'5px 9px',flexShrink:0}} onClick={()=>iniciarEdicion(c)} title="Editar cliente">✏️</button>
+                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id,c.nombre)} title="Eliminar cliente">🗑</button>
                 </div>
 
                 {/* Selector de fee % */}
@@ -588,22 +616,26 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
 
       {/* MODAL */}
       {modal&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',padding:16}} onClick={e=>{if(e.target===e.currentTarget){setModal(null);setForm({});setSelected(null)}}}>
-          <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:`1px solid ${C.border2}`,borderRadius:16,width:'100%',maxWidth:500,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.7)'}}>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',padding:16}} onClick={e=>{if(e.target===e.currentTarget){setModal(null);setForm({});setSelected(null);setEditando(null);setEditForm({})}}}>
+          <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:`1px solid ${C.border2}`,borderRadius:16,width:'100%',maxWidth:520,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 32px 80px rgba(0,0,0,0.7)'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
-              <div style={{fontFamily:'monospace',fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>{modal==='cliente'?'NUEVO CLIENTE':modal==='editar'?'EDITAR CLIENTE':'ASIGNAR EQUIPO'}</div>
-              <button style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,color:C.t2,width:30,height:30,borderRadius:6,cursor:'pointer',fontSize:17,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>{setModal(null);setForm({});setSelected(null)}}>×</button>
+              <div style={{fontFamily:'monospace',fontSize:12,fontWeight:700,letterSpacing:'.08em'}}>
+                {modal==='cliente'?'NUEVO CLIENTE':modal==='editar'?'EDITAR CLIENTE':'ASIGNAR EQUIPO'}
+              </div>
+              <button style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,color:C.t2,width:30,height:30,borderRadius:6,cursor:'pointer',fontSize:17,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>{setModal(null);setForm({});setSelected(null);setEditando(null);setEditForm({})}}>×</button>
             </div>
             <div style={{padding:20}}>
+
+              {/* ─── NUEVO CLIENTE ─── */}
               {modal==='cliente'&&<>
                 <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} placeholder="Ej: Carlos Reyes" value={form.nombre||''} onChange={e=>setForm({...form,nombre:e.target.value})}/></div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Contacto / WhatsApp</label><input style={fInput} placeholder="+595 9..." value={form.contacto||''} onChange={e=>setForm({...form,contacto:e.target.value})}/></div>
-                  <div><label style={fLabel}>País</label><select style={fInput} value={form.pais||'Paraguay'} onChange={e=>setForm({...form,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Estados Unidos</option><option>Otro</option></select></div>
+                  <div><label style={fLabel}>Contacto / WhatsApp</label><input style={fInput} placeholder="+1 786..." value={form.contacto||''} onChange={e=>setForm({...form,contacto:e.target.value})}/></div>
+                  <div><label style={fLabel}>País del cliente</label><SelectPaisCliente val={form.pais} onChange={e=>setForm({...form,pais:e.target.value})}/></div>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
                   <div><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" placeholder="15" value={form.dia_cobro||''} onChange={e=>setForm({...form,dia_cobro:e.target.value})}/></div>
-                  <div><label style={fLabel}>País</label><select style={fInput} value={form.pais||'Paraguay'} onChange={e=>setForm({...form,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Otro</option></select></div>
+                  <div><label style={fLabel}>Ubicación de la granja</label><SelectGranja val={form.ubicacion_granja} onChange={e=>setForm({...form,ubicacion_granja:e.target.value})}/></div>
                 </div>
                 <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(247,147,26,0.05)',border:'1px solid rgba(247,147,26,0.15)',borderRadius:8}}>
                   <div style={{fontSize:10,color:C.orange,fontWeight:600,marginBottom:4}}>ℹ Energía calculada automáticamente</div>
@@ -613,49 +645,38 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={form.fecha_inicio||''} onChange={e=>setForm({...form,fecha_inicio:e.target.value})}/></div>
                   <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={form.fecha_vence_contrato||''} onChange={e=>setForm({...form,fecha_vence_contrato:e.target.value})}/></div>
                 </div>
-                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={editForm.notas||''} onChange={e=>setEditForm({...editForm,notas:e.target.value})}/></div>
-<div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} placeholder="Observaciones..." value={form.notas||''} onChange={e=>setForm({...form,notas:e.target.value})}/></div>
                 <div style={{marginBottom:12}}><label style={fLabel}>Link del Pool (f2pool, etc)</label><input style={fInput} placeholder="https://f2pool.com/mining-user/..." value={form.pool_url||''} onChange={e=>setForm({...form,pool_url:e.target.value})}/></div>
+                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} placeholder="Observaciones..." value={form.notas||''} onChange={e=>setForm({...form,notas:e.target.value})}/></div>
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setForm({})}}>Cancelar</button>
                   <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={addCliente}>✓ Guardar</button>
                 </div>
               </>}
+
+              {/* ─── EDITAR CLIENTE ─── */}
               {modal==='editar'&&<>
                 <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} value={editForm.nombre||''} onChange={e=>setEditForm({...editForm,nombre:e.target.value})}/></div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
                   <div><label style={fLabel}>Contacto / WhatsApp</label><input style={fInput} value={editForm.contacto||''} onChange={e=>setEditForm({...editForm,contacto:e.target.value})}/></div>
-                  <div><label style={fLabel}>País</label><select style={fInput} value={editForm.pais||'Paraguay'} onChange={e=>setEditForm({...editForm,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Estados Unidos</option><option>Otro</option></select></div>
+                  <div><label style={fLabel}>País del cliente</label><SelectPaisCliente val={editForm.pais} onChange={e=>setEditForm({...editForm,pais:e.target.value})}/></div>
                 </div>
-                <div style={{marginBottom:12}}><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" value={editForm.dia_cobro||''} onChange={e=>setEditForm({...editForm,dia_cobro:e.target.value})}/></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                  <div><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" value={editForm.dia_cobro||''} onChange={e=>setEditForm({...editForm,dia_cobro:e.target.value})}/></div>
+                  <div><label style={fLabel}>Ubicación de la granja</label><SelectGranja val={editForm.ubicacion_granja} onChange={e=>setEditForm({...editForm,ubicacion_granja:e.target.value})}/></div>
+                </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
                   <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={editForm.fecha_inicio||''} onChange={e=>setEditForm({...editForm,fecha_inicio:e.target.value})}/></div>
                   <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={editForm.fecha_vence_contrato||''} onChange={e=>setEditForm({...editForm,fecha_vence_contrato:e.target.value})}/></div>
                 </div>
-                <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={editForm.notas||''} onChange={e=>setEditForm({...editForm,notas:e.target.value})}/></div>
                 <div style={{marginBottom:12}}><label style={fLabel}>Link del Pool (f2pool, etc)</label><input style={fInput} placeholder="https://f2pool.com/mining-user/..." value={editForm.pool_url||''} onChange={e=>setEditForm({...editForm,pool_url:e.target.value})}/></div>
-                <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
-                  <button style={btn('ghost')} onClick={()=>{setModal(null);setEditando(null);setEditForm({})}}>Cancelar</button>
-                  <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={guardarEdicion}>✓ Guardar cambios</button>
-                </div>
-              </>}
-              {modal==='editar'&&<>
-                <div style={{marginBottom:12}}><label style={fLabel}>Nombre completo</label><input style={fInput} value={editForm.nombre||''} onChange={e=>setEditForm({...editForm,nombre:e.target.value})}/></div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Contacto / WhatsApp</label><input style={fInput} value={editForm.contacto||''} onChange={e=>setEditForm({...editForm,contacto:e.target.value})}/></div>
-                  <div><label style={fLabel}>País</label><select style={fInput} value={editForm.pais||'Paraguay'} onChange={e=>setEditForm({...editForm,pais:e.target.value})}><option>Paraguay</option><option>Bolivia</option><option>Argentina</option><option>Estados Unidos</option><option>Otro</option></select></div>
-                </div>
-                <div style={{marginBottom:12}}><label style={fLabel}>Día de cobro (1-31)</label><input style={fInput} type="number" min="1" max="31" value={editForm.dia_cobro||''} onChange={e=>setEditForm({...editForm,dia_cobro:e.target.value})}/></div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <div><label style={fLabel}>Inicio contrato</label><input style={fInput} type="date" value={editForm.fecha_inicio||''} onChange={e=>setEditForm({...editForm,fecha_inicio:e.target.value})}/></div>
-                  <div><label style={fLabel}>Vence contrato</label><input style={fInput} type="date" value={editForm.fecha_vence_contrato||''} onChange={e=>setEditForm({...editForm,fecha_vence_contrato:e.target.value})}/></div>
-                </div>
                 <div style={{marginBottom:12}}><label style={fLabel}>Notas</label><input style={fInput} value={editForm.notas||''} onChange={e=>setEditForm({...editForm,notas:e.target.value})}/></div>
                 <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
                   <button style={btn('ghost')} onClick={()=>{setModal(null);setEditando(null);setEditForm({})}}>Cancelar</button>
                   <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={guardarEdicion}>✓ Guardar cambios</button>
                 </div>
               </>}
+
+              {/* ─── ASIGNAR EQUIPO ─── */}
               {modal==='equipo'&&<>
                 <div style={{marginBottom:12}}>
                   <div style={{fontSize:12,color:C.t2,marginBottom:12}}>Asignando equipo a: <strong style={{color:C.t1}}>{selected?.nombre}</strong></div>
@@ -670,6 +691,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <button style={{...btn('gold'),padding:'9px 18px',fontSize:12}} onClick={asignarEquipo}>✓ Asignar</button>
                 </div>
               </>}
+
             </div>
           </div>
         </div>
@@ -698,7 +720,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
   const clienteMes=clienteDay?clienteDay*30:null
   const energiaMes=selectedEquipo?(Number(selectedEquipo.hashrate||0)>=300?163:90):null
 
-  // deduplicate equipos by modelo+hashrate for calculator
   const modelosUnicos=equipos.filter(e=>e.estado==='activo').reduce((acc,eq)=>{
     const key=`${eq.modelo}-${eq.hashrate}`
     if(!acc.find(x=>`${x.modelo}-${x.hashrate}`===key)) acc.push(eq)
@@ -709,7 +730,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
       <div style={{background:'rgba(14,14,22,0.8)',border:`1px solid ${C.border}`,borderRadius:12,padding:18}}>
         <div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.12em',fontWeight:600,marginBottom:14}}>⛏ Configurar cálculo</div>
-
         <div style={{marginBottom:14}}>
           <div style={{fontSize:10,color:C.t3,marginBottom:8,fontWeight:600}}>Seleccionar modelo</div>
           <div style={{display:'flex',flexDirection:'column',gap:5}}>
@@ -726,7 +746,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
             ))}
           </div>
         </div>
-
         {!selectedEquipo&&(
           <div style={{marginBottom:14}}>
             <div style={{fontSize:10,color:C.t3,marginBottom:6,fontWeight:600}}>Hashrate (TH/s)</div>
@@ -734,18 +753,16 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
               style={{width:'100%',background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border2}`,borderRadius:8,padding:'10px 14px',color:C.orange,fontFamily:'monospace',fontSize:15,fontWeight:700,outline:'none',boxSizing:'border-box'}}/>
           </div>
         )}
-
         <div style={{marginBottom:14}}>
           <div style={{fontSize:10,color:C.t3,marginBottom:6,fontWeight:600}}>Precio BTC (USD)</div>
           <input type="number" placeholder={btcPrice?String(Math.round(btcPrice)):'precio BTC'} value={customPrice} onChange={e=>setCustomPrice(e.target.value)}
             style={{width:'100%',background:'rgba(255,255,255,0.05)',border:`1px solid ${C.border2}`,borderRadius:8,padding:'10px 14px',color:C.orange,fontFamily:'monospace',fontSize:14,fontWeight:700,outline:'none',boxSizing:'border-box'}}/>
           {btcPrice&&!customPrice&&<div style={{fontSize:9,color:C.t3,marginTop:4}}>Precio actual: ${btcPrice.toLocaleString()}</div>}
         </div>
-
         <div>
           <div style={{fontSize:10,color:C.t3,marginBottom:8,fontWeight:600}}>% Fee NeuraHash</div>
           <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-            {[0,10,15,18,20,25].map(pct=>(
+            {[0,7.5,10,15,18,20,25].map(pct=>(
               <button key={pct} onClick={()=>setFeeSelected(pct)}
                 style={{padding:'5px 13px',borderRadius:7,border:'none',cursor:'pointer',fontFamily:'monospace',fontSize:11,fontWeight:700,transition:'all .15s',
                   background:feeSelected===pct?'rgba(247,147,26,0.2)':'rgba(255,255,255,0.04)',
@@ -763,7 +780,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
         <div style={{fontSize:10,color:C.t3,textTransform:'uppercase',letterSpacing:'.12em',fontWeight:600,marginBottom:14}}>
           📊 Revenue — {selectedEquipo?selectedEquipo.modelo:`${hashrateUsado||0} TH/s`}
         </div>
-
         {!hashrateUsado?(
           <div style={{color:C.t3,fontSize:12,textAlign:'center',padding:40,fontStyle:'italic'}}>Seleccioná un equipo o ingresá el hashrate</div>
         ):(
@@ -782,7 +798,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
                 </div>
               ))}
             </div>
-
             {energiaMes&&(
               <div style={{marginBottom:14,padding:'10px 14px',background:'rgba(245,158,11,0.04)',border:'1px solid rgba(245,158,11,0.15)',borderRadius:8}}>
                 <div style={{fontSize:9,color:C.amber,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:6}}>Costo Energía / mes</div>
@@ -790,7 +805,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
                 <div style={{fontSize:9,color:C.t3,marginTop:2}}>{Number(selectedEquipo?.hashrate||0)>=300?'Hydro cooling':'Aire'}</div>
               </div>
             )}
-
             {feeSelected>0&&(
               <>
                 <div style={{marginBottom:10,padding:'12px 14px',background:'rgba(247,147,26,0.05)',border:'1px solid rgba(247,147,26,0.15)',borderRadius:8}}>
@@ -806,7 +820,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
                     </div>
                   ))}
                 </div>
-
                 <div style={{padding:'12px 14px',background:'rgba(16,185,129,0.04)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:8}}>
                   <div style={{fontSize:9,color:C.green,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:600,marginBottom:10}}>Cliente recibe</div>
                   {[
@@ -822,7 +835,6 @@ function CalculadoraTab({equipos,btcPrice,calcBtcDay,difficulty,C,num,money,btcF
                 </div>
               </>
             )}
-
             {difficulty&&<div style={{marginTop:10,fontSize:9,color:C.t3,textAlign:'right'}}>Dificultad: {(difficulty/1e12).toFixed(2)}T · FPPS</div>}
           </>
         )}
