@@ -114,6 +114,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   const[editForm,setEditForm]=useState({})
   const[editandoFecha,setEditandoFecha]=useState(null) // {clienteId, grupoKey, ids}
   const[fechaTemp,setFechaTemp]=useState('')
+  const[confirmDel,setConfirmDel]=useState(null) // {id, desc}
 
   const { btcPrice, difficulty, lastUpdate, loading: miningLoading, calcBtcDay, refetch } = useMiningData()
 
@@ -315,9 +316,9 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     if(onRefresh)onRefresh()
   }
 
-  async function del(id,nombre){
-    if(!window.confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return
-    await supabase.from('clientes').delete().eq('id',id)
+  async function confirmarDel(){
+    await supabase.from('clientes').delete().eq('id',confirmDel.id)
+    setConfirmDel(null)
     fetchData();toast('Cliente eliminado','info')
     if(onRefresh)onRefresh()
   }
@@ -447,7 +448,7 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                     {energiaTotal>0&&<div style={{fontSize:10,color:C.amber,marginTop:3}}>⚡ {money(energiaTotal)}/mes energía</div>}
                   </div>
                   <button style={{...btn('ghost'),padding:'5px 9px',flexShrink:0}} onClick={()=>iniciarEdicion(c)} title="Editar">✏️</button>
-                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>del(c.id,c.nombre)} title="Eliminar">🗑</button>
+                  <button style={{...btn('red'),padding:'5px 9px',flexShrink:0}} onClick={()=>setConfirmDel({id:c.id,desc:c.nombre})} title="Eliminar">🗑</button>
                 </div>
 
                 <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:10,flexWrap:'wrap'}}>
@@ -866,6 +867,19 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                 </div>
               </>}
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDel&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)'}}>
+          <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:'1px solid rgba(255,255,255,0.15)',borderRadius:14,padding:'24px 28px',maxWidth:340,width:'90%',fontFamily:'Inter,sans-serif'}}>
+            <div style={{fontSize:14,fontWeight:700,color:'#f0f0f8',marginBottom:8}}>¿Eliminar cliente?</div>
+            <div style={{fontSize:11,color:'#808098',marginBottom:20,wordBreak:'break-word'}}>"{confirmDel.desc}"</div>
+            <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button onClick={()=>setConfirmDel(null)} style={{padding:'8px 16px',borderRadius:7,border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.06)',color:'#f0f0f8',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11}}>Cancelar</button>
+              <button onClick={confirmarDel} style={{padding:'8px 16px',borderRadius:7,border:'none',background:'#f43f5e',color:'#fff',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600}}>Eliminar</button>
             </div>
           </div>
         </div>
