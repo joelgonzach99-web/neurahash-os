@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npx vite *)",
+      "Read(//c/Users/ASUS/**)",
+      "Bash(npm create *)"
+    ]
+  }
+}
