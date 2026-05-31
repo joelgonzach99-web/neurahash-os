@@ -115,6 +115,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   const[editandoFecha,setEditandoFecha]=useState(null) // {clienteId, grupoKey, ids}
   const[fechaTemp,setFechaTemp]=useState('')
   const[confirmDel,setConfirmDel]=useState(null) // {id, desc}
+  const[portalModal,setPortalModal]=useState(null) // {cliente, token}
+  const[copiedPortal,setCopiedPortal]=useState(false)
 
   const { btcPrice, difficulty, lastUpdate, loading: miningLoading, calcBtcDay, refetch } = useMiningData()
 
@@ -222,6 +224,18 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     const msg=`Hola ${cliente.nombre.split(' ')[0]} 👋, te recuerdo que tu pago vence el *${fecha}*:\n• Hosting: *${hostingStr}*\n• Energía: *${money(energiaTotal)}*\nCualquier consulta estoy disponible. Saludos, *NeuraHash* ⛏`
     const tel=(cliente.contacto||'').replace(/\D/g,'')
     window.open(tel?`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`:`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank')
+  }
+
+  async function handlePortalAccess(cliente){
+    let token=cliente.token_acceso
+    if(!token){
+      const prefix=(cliente.nombre||'CLIE').replace(/\s+/g,'').slice(0,4).toUpperCase()
+      token=prefix+Math.random().toString(36).slice(2,6).toUpperCase()
+      await supabase.from('clientes').update({token_acceso:token}).eq('id',cliente.id)
+      setClientes(prev=>prev.map(c=>c.id===cliente.id?{...c,token_acceso:token}:c))
+    }
+    setCopiedPortal(false)
+    setPortalModal({cliente,token})
   }
 
   const alertasProximas=clientes.filter(c=>{const d=getDiasAlCobro(c);return d!==null&&d<=5&&d>=0&&getEstadoPago(c)!=='pagado'})
@@ -510,8 +524,12 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   <span style={{fontSize:9,padding:'4px 10px',borderRadius:10,background:estadoEnergia==='pagado'?'rgba(16,185,129,0.1)':'rgba(245,158,11,0.08)',color:estadoEnergia==='pagado'?C.green:C.amber,border:`1px solid ${estadoEnergia==='pagado'?'rgba(16,185,129,0.2)':'rgba(245,158,11,0.2)'}`}}>
                     {estadoEnergia==='pagado'?'✅ Energía pagada':'⚡ Energía pendiente'}
                   </span>
+                  <span style={{fontSize:9,padding:'4px 10px',borderRadius:10,background:c.token_acceso?'rgba(99,102,241,0.1)':'rgba(255,255,255,0.04)',color:c.token_acceso?C.blue:C.t3,border:`1px solid ${c.token_acceso?'rgba(99,102,241,0.3)':'rgba(255,255,255,0.08)'}`}}>
+                    {c.token_acceso?'🔑 Portal activo':'— Portal'}
+                  </span>
                   <button style={{...btn('wa'),padding:'6px 12px',fontSize:10}} onClick={()=>abrirWhatsApp(c)}>📲 WhatsApp</button>
                   {c.pool_url&&<button style={{...btn('orange'),padding:'6px 12px',fontSize:10}} onClick={()=>window.open(c.pool_url,'_blank')}>⛏ Ver Pool</button>}
+                  <button style={{...btn('gold'),padding:'6px 12px',fontSize:10}} onClick={()=>handlePortalAccess(c)}>🔑 Portal Access</button>
                 </div>
               </div>
 
@@ -881,6 +899,39 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
               <button onClick={()=>setConfirmDel(null)} style={{padding:'8px 16px',borderRadius:7,border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.06)',color:'#f0f0f8',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11}}>Cancelar</button>
               <button onClick={confirmarDel} style={{padding:'8px 16px',borderRadius:7,border:'none',background:'#f43f5e',color:'#fff',cursor:'pointer',fontFamily:'Inter,sans-serif',fontSize:11,fontWeight:600}}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {portalModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',padding:16}} onClick={e=>{if(e.target===e.currentTarget){setPortalModal(null);setCopiedPortal(false)}}}>
+          <div style={{background:'linear-gradient(135deg,rgba(16,16,26,0.99),rgba(12,12,20,0.99))',border:'1px solid rgba(99,102,241,0.3)',borderRadius:16,width:'100%',maxWidth:420,boxShadow:'0 32px 80px rgba(0,0,0,0.7)',fontFamily:'Inter,sans-serif'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontFamily:'monospace',fontSize:12,fontWeight:700,letterSpacing:'.08em',color:C.blue}}>PORTAL ACCESS</div>
+              <button style={{background:'rgba(255,255,255,0.06)',border:`1px solid ${C.border}`,color:C.t2,width:30,height:30,borderRadius:6,cursor:'pointer',fontSize:17,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={()=>{setPortalModal(null);setCopiedPortal(false)}}>×</button>
+            </div>
+            <div style={{padding:20}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+                <span style={{fontSize:18,color:C.green}}>✓</span>
+                <span style={{fontSize:14,fontWeight:700,color:C.t1}}>Acceso creado</span>
+              </div>
+              <div style={{fontSize:11,color:C.t2,marginBottom:8}}>Token de acceso de <strong style={{color:C.t1}}>{portalModal.cliente.nombre}</strong>:</div>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,padding:'12px 14px',background:'rgba(99,102,241,0.06)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:10}}>
+                <span style={{flex:1,fontFamily:'monospace',fontSize:16,fontWeight:800,color:C.blue,letterSpacing:'.12em'}}>{portalModal.token}</span>
+                <button onClick={()=>{navigator.clipboard.writeText(portalModal.token);setCopiedPortal(true);setTimeout(()=>setCopiedPortal(false),2000)}}
+                  style={{padding:'6px 14px',borderRadius:7,border:`1px solid ${copiedPortal?'rgba(16,185,129,0.4)':'rgba(99,102,241,0.4)'}`,background:copiedPortal?'rgba(16,185,129,0.1)':'rgba(99,102,241,0.1)',color:copiedPortal?C.green:C.blue,cursor:'pointer',fontSize:10,fontWeight:600,fontFamily:'Inter,sans-serif',transition:'all .15s',whiteSpace:'nowrap'}}>
+                  {copiedPortal?'COPIADO ✓':'COPIAR'}
+                </button>
+              </div>
+              <div style={{fontSize:10,color:C.t3,marginBottom:16}}>Compartí este token con <strong style={{color:C.t2}}>{portalModal.cliente.nombre}</strong> para que acceda al portal de inversor.</div>
+              <div style={{padding:'10px 14px',background:'rgba(255,255,255,0.02)',border:`1px solid ${C.border}`,borderRadius:8,marginBottom:16}}>
+                <div style={{fontSize:9,color:C.t3,marginBottom:4}}>Link del portal:</div>
+                <div style={{fontFamily:'monospace',fontSize:10,color:C.t2}}>neurahash-client.vercel.app</div>
+              </div>
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end',paddingTop:14,borderTop:`1px solid ${C.border}`}}>
+                <button style={{...btn('ghost'),padding:'8px 16px'}} onClick={()=>{setPortalModal(null);setCopiedPortal(false)}}>Cerrar</button>
+              </div>
             </div>
           </div>
         </div>
