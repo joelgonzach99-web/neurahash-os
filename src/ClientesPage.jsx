@@ -117,6 +117,8 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
   const[confirmDel,setConfirmDel]=useState(null) // {id, desc}
   const[portalModal,setPortalModal]=useState(null) // {cliente, token}
   const[copiedPortal,setCopiedPortal]=useState(false)
+  const[produccionMensual,setProduccionMensual]=useState({}) // cliente_id -> row
+  const[marcandoEnergia,setMarcandoEnergia]=useState(null) // cliente_id siendo procesado
 
   const { btcPrice, difficulty, lastUpdate, loading: miningLoading, calcBtcDay, refetch } = useMiningData()
 
@@ -124,14 +126,18 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
 
   async function fetchData(){
     setLoading(true)
-    const[c,p,ce]=await Promise.all([
+    const[c,p,ce,pm]=await Promise.all([
       supabase.from('clientes').select('*').order('creado_en',{ascending:false}),
       supabase.from('pagos_clientes').select('*').order('creado_en',{ascending:false}),
       supabase.from('cliente_equipos').select('*'),
+      supabase.from('produccion_mensual').select('*').eq('mes',getPeriodo()),
     ])
     setClientes(c.data||[])
     setPagos(p.data||[])
     setClienteEquipos(ce.data||[])
+    const pmMap={}
+    ;(pm.data||[]).forEach(row=>{ pmMap[row.cliente_id]=row })
+    setProduccionMensual(pmMap)
     const fees={}
     ;(c.data||[]).forEach(cl=>{ if(cl.hosting_fee_pct) fees[cl.id]=Number(cl.hosting_fee_pct) })
     setFeePcts(prev=>({...fees,...prev}))
@@ -298,6 +304,18 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
     await supabase.from('finanzas').insert([{tipo:'ingreso',monto:Number(monto)||0,moneda:'USD',descripcion:`${tipo==='hosting'?'Hosting':'Energía'}: ${cliente.nombre}`,categoria:tipo==='hosting'?'Hosting':'Energía',fecha:new Date().toISOString().slice(0,10),responsable:'Joel',pais:cliente.pais||'Paraguay'}])
     fetchData();toast(`${tipo==='hosting'?'Hosting':'Energía'} marcado como pagado ✓`,'success')
     if(onRefresh)onRefresh()
+  }
+
+  async function marcarEnergiaProduccion(produccionId, metodo){
+    setMarcandoEnergia(produccionId)
+    await supabase.from('produccion_mensual').update({
+      energia_pagada: true,
+      energia_fecha_pago: new Date().toISOString().slice(0,10),
+      energia_metodo: metodo
+    }).eq('id', produccionId)
+    await fetchData()
+    setMarcandoEnergia(null)
+    toast('Energía marcada como pagada ✓','success')
   }
 
   function iniciarEdicion(cliente){
@@ -651,6 +669,57 @@ export default function ClientesPage({equipos=[],onRefresh,toast}){
                   {energiaTotal>0&&estadoEnergia!=='pagado'&&<button style={{...btn('ghost'),border:`1px solid rgba(245,158,11,0.3)`,color:C.amber}} onClick={()=>marcarPagado(c,'energia')}>✓ Marcar pagado</button>}
                 </div>
               </div>
+
+              {/* ── PRODUCCIÓN MES ACTUAL (datos reales F2Pool via sync) ── */}
+              {(()=>{
+                const pm=produccionMensual[c.id]
+                if(!pm) return null
+                const ts=pm.ultima_actualizacion?new Date(pm.ultima_actualizacion).toLocaleString('es-PY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):null
+                return(
+                  <div style={{borderTop:`1px solid ${C.border}`,padding:'12px 16px',background:'rgba(212,168,67,0.02)'}}>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                      <span style={{fontSize:10,color:C.gold,textTransform:'uppercase',letterSpacing:'.1em',fontWeight:700}}>⛏ Producción real — {getPeriodo()}</span>
+                      {ts&&<span style={{fontSize:8,color:C.t3}}>Último sync: {ts}</span>}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:10}}>
+                      {[
+                        {label:'BTC bruto',val:btcFmt(pm.btc_bruto),color:C.orange},
+                        {label:`Hosting (${Math.round((pm.btc_hosting/(pm.btc_bruto||1))*100)}%)`,val:btcFmt(pm.btc_hosting),color:C.gold2},
+                        {label:'BTC neto cliente',val:btcFmt(pm.btc_neto_cliente),color:C.green},
+                        {label:'Hashrate prom.',val:`${Number(pm.hashrate_promedio||0).toFixed(1)} TH/s`,color:C.blue},
+                      ].map(({label,val,color})=>(
+                        <div key={label} style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 10px'}}>
+                          <div style={{fontSize:8,color:C.t3,marginBottom:4,textTransform:'uppercase',letterSpacing:'.08em'}}>{label}</div>
+                          <div style={{fontFamily:'monospace',fontSize:11,fontWeight:700,color}}>{val}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Energía */}
+                    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                      <div style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${C.border}`,borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{fontSize:9,color:C.t3}}>⚡ Energía {pm.maquinas} máq:</span>
+                        <span style={{fontFamily:'monospace',fontSize:12,fontWeight:700,color:C.amber}}>{money(pm.energia_usd)}</span>
+                      </div>
+                      {pm.energia_pagada?(
+                        <span style={{fontSize:9,padding:'5px 10px',borderRadius:8,background:'rgba(16,185,129,0.1)',color:C.green,border:'1px solid rgba(16,185,129,0.25)'}}>
+                          ✅ Energía pagada · {pm.energia_metodo?.toUpperCase()||''} · {pm.energia_fecha_pago||''}
+                        </span>
+                      ):(
+                        <div style={{display:'flex',alignItems:'center',gap:6}}>
+                          <span style={{fontSize:9,color:C.amber}}>⏳ Energía pendiente</span>
+                          {['btc','zelle','usdt'].map(m=>(
+                            <button key={m} disabled={marcandoEnergia===pm.id}
+                              style={{...btn('ghost'),padding:'4px 10px',fontSize:9,border:`1px solid rgba(245,158,11,0.3)`,color:C.amber}}
+                              onClick={()=>marcarEnergiaProduccion(pm.id,m)}>
+                              ✓ {m.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {(c.fecha_vence_contrato||c.notas)&&(
                 <div style={{padding:'8px 16px',borderTop:`1px solid ${C.border}`,background:'rgba(255,255,255,0.01)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>

@@ -1,0 +1,27 @@
+name: Sync F2Pool Daily
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # 01:00 UTC = 21:00 Paraguay (UTC-4)
+  workflow_dispatch:       # permite correr manualmente desde GitHub Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install script dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Run F2Pool sync
+        working-directory: scripts
+        run: node sync-f2pool.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
