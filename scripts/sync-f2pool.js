@@ -44,36 +44,25 @@ async function syncClientes() {
     const f2data = await getF2PoolData(cliente.f2pool_username);
     if (!f2data) continue;
 
-    const btcBalancePendiente  = Number(f2data.balance       || 0);
-    const btcCobradoHistorico  = Number(f2data.fixed_value   || 0);
-    const hashrateTH           = Number(f2data.hashes_last_day || 0) / 1e12;
-    const hashrateActualTH     = Number(f2data.hashrate       || 0) / 1e12;
-
-    const feePct        = Number(cliente.hosting_fee_pct || 10) / 100;
-    const btcHosting    = btcBalancePendiente * feePct;
-    const btcNeto       = btcBalancePendiente * (1 - feePct);
-
-    const maquinas      = Array.isArray(f2data.workers)
-      ? f2data.workers.filter(w => w.status === 'active').length
-      : 0;
-    const energiaUSD    = maquinas * Number(cliente.energia_usd_por_maquina || 163);
+    const btc_bruto          = Number(f2data.balance        || 0);
+    const btc_hosting        = btc_bruto * 0.10;
+    const btc_neto_cliente   = btc_bruto * 0.90;
+    const hashrate_promedio  = Number(f2data.hashes_last_day || 0) / 1e12;
 
     const { error: upsertErr } = await supabase
       .from('produccion_mensual')
       .upsert({
-        cliente_id:              cliente.id,
-        mes:                     MES_ACTUAL,
-        btc_bruto:               btcBalancePendiente,   // balance pendiente de cobro
-        btc_hosting:             btcHosting,
-        btc_neto_cliente:        btcNeto,
-        hashrate_promedio:       hashrateTH,            // hashes_last_day → TH/s
-        maquinas,
-        energia_usd:             energiaUSD,
-        ultima_actualizacion:    new Date().toISOString(),
+        cliente_id:           cliente.id,
+        mes:                  MES_ACTUAL,
+        btc_bruto,
+        btc_hosting,
+        btc_neto_cliente,
+        hashrate_promedio,
+        ultima_actualizacion: new Date().toISOString(),
       }, { onConflict: 'cliente_id,mes' });
 
     if (upsertErr) console.error('  ✗ Upsert error:', upsertErr.message);
-    else console.log(`  ✓ OK — balance: ${btcBalancePendiente} BTC  cobrado: ${btcCobradoHistorico} BTC  hashrate: ${hashrateTH.toFixed(1)} TH/s`);
+    else console.log(`  ✓ OK — btc_bruto: ${btc_bruto} BTC  hosting: ${btc_hosting.toFixed(8)}  neto: ${btc_neto_cliente.toFixed(8)}  hashrate: ${hashrate_promedio.toFixed(1)} TH/s`);
   }
 
   console.log(`\n✓ Sync completado — ${MES_ACTUAL}\n`);
