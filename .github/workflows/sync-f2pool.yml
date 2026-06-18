@@ -25,3 +25,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          F2POOL_API_KEY: ${{ secrets.F2POOL_API_KEY }}
