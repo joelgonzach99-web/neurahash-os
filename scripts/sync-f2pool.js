@@ -12,11 +12,18 @@ const MES_ACTUAL = new Date().toISOString().slice(0, 7); // "2026-06"
 
 async function getF2PoolData(token) {
   try {
-    const res = await fetch(`https://api.f2pool.com/bitcoin/${token}`, {
-      headers: { 'f2pool-user': token }
+    const url = `https://api.f2pool.com/bitcoin/${token}`;
+    const res = await fetch(url, {
+      headers: {
+        'F2Pool-User': token,
+        'Content-Type': 'application/json'
+      }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    const data = await res.json();
+    console.log(`  [debug] keys:`, Object.keys(data).join(', '));
+    console.log(`  [debug] raw:`, JSON.stringify(data).slice(0, 500));
+    return data;
   } catch (e) {
     console.error(`  ✗ Error F2Pool token ${token}:`, e.message);
     return null;
@@ -43,10 +50,16 @@ async function syncClientes() {
     if (!f2data) continue;
 
     // Hashrate: F2Pool retorna H/s, convertir a TH/s
-    const hashrateTH = (f2data.hashes_last_day || 0) / 1e12;
+    const hashrateTH = (f2data.hashes_last_day || f2data.hashrate || 0) / 1e12;
 
-    // BTC producido hoy (bruto del pool)
-    const btcHoyBruto = Number(f2data.value_last_day || 0);
+    // BTC producido hoy — probar varios campos que F2Pool puede usar
+    const btcHoyBruto = Number(
+      f2data.value_last_day ||
+      f2data.paid_mining_value_last_day ||
+      f2data.income_last_day ||
+      f2data.earnings_last_day ||
+      0
+    );
 
     // Fee según configuración del cliente (default 10%)
     const feePct = Number(cliente.hosting_fee_pct || 10) / 100;
