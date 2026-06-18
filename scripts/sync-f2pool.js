@@ -18,6 +18,7 @@ async function getF2PoolData(username) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     console.log(`  balance: ${data.balance}  fixed_value: ${data.fixed_value}  hashrate: ${(data.hashes_last_day/1e12).toFixed(1)} TH/s`);
+    console.log('F2Pool response para', username, ':', JSON.stringify(data).slice(0, 300));
     return data;
   } catch (e) {
     console.error(`  ✗ Error ${username}:`, e.message);
@@ -44,7 +45,7 @@ async function syncClientes() {
     const f2data = await getF2PoolData(cliente.f2pool_username);
     if (!f2data) continue;
 
-    const btc_bruto          = Number(f2data.balance        || 0);
+    const btc_bruto          = Number(f2data.fixed_value     || 0);
     const btc_hosting        = btc_bruto * 0.10;
     const btc_neto_cliente   = btc_bruto * 0.90;
     const hashrate_promedio  = Number(f2data.hashes_last_day || 0) / 1e12;
