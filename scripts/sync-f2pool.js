@@ -12,7 +12,7 @@ const MES_ACTUAL = new Date().toISOString().slice(0, 7); // "2026-06"
 
 async function getF2PoolData(username) {
   try {
-    const res = await fetch(`https://api.f2pool.com/bitcoin/${username}`, {
+    const res = await fetch(`https://api.f2pool.com/v2/mining-user/sub-account/detail?mining_user_name=mgd21btc&sub_account_name=${username}&currency=bitcoin`, {
       headers: { 'F2P-API-SECRET': process.env.F2POOL_API_KEY }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
