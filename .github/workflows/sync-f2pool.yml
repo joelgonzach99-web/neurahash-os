@@ -3,7 +3,7 @@ name: Sync F2Pool Daily
 on:
   schedule:
     - cron: '0 1 * * *'  # 01:00 UTC = 21:00 Paraguay (UTC-4)
-  workflow_dispatch:       # permite correr manualmente desde GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -15,14 +15,11 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install script dependencies
-        working-directory: scripts
-        run: npm install
+      - run: npm install @supabase/supabase-js node-fetch
 
-      - name: Run F2Pool sync
-        working-directory: scripts
-        run: node sync-f2pool.js
+      - name: Sync F2Pool data
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_URL: https://cidfzfapcvoyrunxoskn.supabase.co
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           F2POOL_API_KEY: ${{ secrets.F2POOL_API_KEY }}
+        run: node scripts/sync-f2pool.js
