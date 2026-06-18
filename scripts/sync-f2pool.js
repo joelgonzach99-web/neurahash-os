@@ -17,7 +17,7 @@ async function getF2PoolData(username) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    console.log(`  balance: ${data.balance}  fixed_value: ${data.fixed_value}  hashrate: ${(data.hashes_last_day/1e12).toFixed(1)} TH/s`);
+    console.log(`  balance: ${data.balance}  fixed_value: ${data.fixed_value}  hashrate: ${(data.hashrate/1e12).toFixed(1)} TH/s`);
     console.log('F2Pool response para', username, ':', JSON.stringify(data).slice(0, 300));
     return data;
   } catch (e) {
@@ -48,7 +48,7 @@ async function syncClientes() {
     const btc_bruto          = Number(f2data.fixed_value     || 0);
     const btc_hosting        = btc_bruto * 0.10;
     const btc_neto_cliente   = btc_bruto * 0.90;
-    const hashrate_promedio  = Number(f2data.hashes_last_day || 0) / 1e12;
+    const hashrate_promedio  = Number(f2data.hashrate || 0) / 1e12;
 
     const { error: upsertErr } = await supabase
       .from('produccion_mensual')
