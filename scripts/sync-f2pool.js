@@ -10,15 +10,11 @@ const supabase = createClient(
 
 const MES_ACTUAL = new Date().toISOString().slice(0, 7); // "2026-06"
 
+const F2POOL_PROXY = 'https://neurahash-client.vercel.app/api/f2pool';
+
 async function getF2PoolData(token) {
   try {
-    const url = `https://api.f2pool.com/bitcoin/${token}`;
-    const res = await fetch(url, {
-      headers: {
-        'F2Pool-User': token,
-        'Content-Type': 'application/json'
-      }
-    });
+    const res = await fetch(`${F2POOL_PROXY}?token=${token}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     console.log(`  [debug] keys:`, Object.keys(data).join(', '));
