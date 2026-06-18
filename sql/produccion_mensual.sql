@@ -19,8 +19,7 @@ CREATE TABLE IF NOT EXISTS produccion_mensual (
   UNIQUE(cliente_id, mes)
 );
 
--- Agregar columna f2pool_token a clientes si no existe
-ALTER TABLE clientes ADD COLUMN IF NOT EXISTS f2pool_token varchar(100);
+-- f2pool_username ya existe en clientes (no agregar duplicado)
 
 -- Agregar columna energía por máquina si no existe
 ALTER TABLE clientes ADD COLUMN IF NOT EXISTS energia_usd_por_maquina numeric(8,2) DEFAULT 163;

@@ -32,8 +32,8 @@ async function syncClientes() {
 
   const { data: clientes, error } = await supabase
     .from('clientes')
-    .select('id, nombre, f2pool_token, hosting_fee_pct, energia_usd_por_maquina')
-    .not('f2pool_token', 'is', null);
+    .select('id, nombre, f2pool_username, hosting_fee_pct, energia_usd_por_maquina')
+    .not('f2pool_username', 'is', null);
 
   if (error) { console.error('Error cargando clientes:', error.message); process.exit(1); }
   if (!clientes?.length) { console.log('Sin clientes con f2pool_token.'); return; }
@@ -43,7 +43,7 @@ async function syncClientes() {
   for (const cliente of clientes) {
     console.log(`→ ${cliente.nombre}`);
 
-    const f2data = await getF2PoolData(cliente.f2pool_token);
+    const f2data = await getF2PoolData(cliente.f2pool_username);
     if (!f2data) continue;
 
     // Hashrate: F2Pool retorna H/s, convertir a TH/s
