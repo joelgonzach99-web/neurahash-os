@@ -76,6 +76,9 @@ async function syncDiarios(cliente, stats) {
 
   const fee               = normalizeFee(cliente.hosting_fee_pct);
   const energiaUsdMaquina = Number(cliente.energia_usd_por_maquina) || 163;
+  // Tope de capacidad: si worker_length viene 0 (cuenta offline), no se capea ese sync;
+  // el próximo sync con workers visibles recalcula los 30 días del historial con tope.
+  const nMaquinas         = Number(stats.worker_length) || 0;
 
   // Tasa FPPS de referencia: BTC/TH/día basada en el dato de ayer (exacto)
   // Usada para estimar hashrate_ths en días históricos
@@ -104,8 +107,12 @@ async function syncDiarios(cliente, stats) {
     }
 
     // energia_usd = máquinas efectivas × costo diario por máquina
-    // máquinas efectivas = hashrate_ths / 395 (TH/s nominal S21 Hydro)
-    const energia_usd = (hashrate_ths / 395) * (energiaUsdMaquina / 30);
+    // máquinas efectivas = hashrate_ths / 395 (TH/s nominal S21 Hydro),
+    // con tope al 100% de capacidad: overclock por encima del nominal
+    // nunca factura más que nMaquinas × (energiaUsdMaquina / 30) por día
+    let maqEfectivas = hashrate_ths / 395;
+    if (nMaquinas > 0 && maqEfectivas > nMaquinas) maqEfectivas = nMaquinas;
+    const energia_usd = maqEfectivas * (energiaUsdMaquina / 30);
 
     return {
       cliente_id:           cliente.id,

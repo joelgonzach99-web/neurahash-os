@@ -1,0 +1,24 @@
+name: Cerrar Liquidación Mensual
+
+on:
+  schedule:
+    - cron: '0 2 15 * *'  # día 15, 02:00 UTC — 1h después del sync diario (01:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  cerrar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - run: npm install @supabase/supabase-js
+
+      - name: Cerrar liquidación del ciclo
+        env:
+          SUPABASE_URL: https://cidfzfapcvoyrunxoskn.supabase.co
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/cerrar-liquidacion.js
