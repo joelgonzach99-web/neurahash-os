@@ -55,7 +55,7 @@ async function syncMensual(cliente, stats) {
       btc_neto_cliente,
       hashrate_promedio,
       maquinas:             nMaquinas,
-      energia_usd:          nMaquinas * energiaUsdMaquina,
+      energia_usd:          Number(cliente.tarifa_energia_mensual) || nMaquinas * energiaUsdMaquina,
       ultima_actualizacion: new Date().toISOString(),
     }, { onConflict: 'cliente_id,mes' });
 
@@ -76,9 +76,15 @@ async function syncDiarios(cliente, stats) {
 
   const fee               = normalizeFee(cliente.hosting_fee_pct);
   const energiaUsdMaquina = Number(cliente.energia_usd_por_maquina) || 163;
-  // Tope de capacidad: si worker_length viene 0 (cuenta offline), no se capea ese sync;
-  // el próximo sync con workers visibles recalcula los 30 días del historial con tope.
   const nMaquinas         = Number(stats.worker_length) || 0;
+
+  // Capacidad y tarifa por cliente (clientes.capacidad_ths / tarifa_energia_mensual),
+  // p.ej. Jordan: 595 TH/s y $253/mes (S21 200 + S21 Hydro 395).
+  // Fallback para clientes sin configurar: worker_length × 395 TH/s nominal y
+  // energia_usd_por_maquina × worker_length (si la cuenta está offline en este
+  // sync, el fallback queda en 0 y no se capea; el próximo sync recalcula todo).
+  const capacidadThs  = Number(cliente.capacidad_ths) || (nMaquinas * 395);
+  const tarifaMensual = Number(cliente.tarifa_energia_mensual) || (nMaquinas * energiaUsdMaquina);
 
   // Tasa FPPS de referencia: BTC/TH/día basada en el dato de ayer (exacto)
   // Usada para estimar hashrate_ths en días históricos
@@ -106,13 +112,11 @@ async function syncDiarios(cliente, stats) {
       hashrate_ths = btc_bruto / fppsRate;
     }
 
-    // energia_usd = máquinas efectivas × costo diario por máquina
-    // máquinas efectivas = hashrate_ths / 395 (TH/s nominal S21 Hydro),
-    // con tope al 100% de capacidad: overclock por encima del nominal
-    // nunca factura más que nMaquinas × (energiaUsdMaquina / 30) por día
-    let maqEfectivas = hashrate_ths / 395;
-    if (nMaquinas > 0 && maqEfectivas > nMaquinas) maqEfectivas = nMaquinas;
-    const energia_usd = maqEfectivas * (energiaUsdMaquina / 30);
+    // energia_usd = fracción de capacidad usada × tarifa diaria, con tope al
+    // 100%: nunca se factura más que tarifaMensual / 30 por día
+    let fraccion = capacidadThs > 0 ? hashrate_ths / capacidadThs : 0;
+    if (fraccion > 1) fraccion = 1;
+    const energia_usd = fraccion * (tarifaMensual / 30);
 
     return {
       cliente_id:           cliente.id,
@@ -145,7 +149,7 @@ async function syncClientes() {
 
   const { data: clientes, error } = await supabase
     .from('clientes')
-    .select('id, nombre, f2pool_username, hosting_fee_pct, energia_usd_por_maquina')
+    .select('id, nombre, f2pool_username, hosting_fee_pct, energia_usd_por_maquina, capacidad_ths, tarifa_energia_mensual')
     .not('f2pool_username', 'is', null);
 
   if (error) { console.error('Error cargando clientes:', error.message); process.exit(1); }

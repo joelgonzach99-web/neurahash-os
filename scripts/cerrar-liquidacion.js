@@ -16,11 +16,11 @@ const iso = d =>
   `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 
 // ── Transición del piloto ─────────────────────────────────────────────────────
-// El piloto se facturó manualmente hasta el 11 de julio de 2026 inclusive.
-// El ciclo 15 jun – 14 jul NO genera liquidación automática.
-// La primera liquidación real cierra el 15 ago y cubre 12 jul → 14 ago.
-const ULTIMO_CIERRE_MANUAL = '2026-07-14'; // ciclos con fin <= esta fecha se saltean
-const PRIMER_INICIO_AUTO   = '2026-07-12'; // arranque de la primera liquidación automática
+// El piloto se cerró manualmente hasta el 14 de julio de 2026 inclusive
+// (liquidaciones cargadas a mano en la tabla). Ciclos con fin <= esa fecha
+// se saltean. La primera liquidación automática cierra el 15 ago con el
+// ciclo estándar 15 jul → 14 ago, sin excepciones de inicio.
+const ULTIMO_CIERRE_MANUAL = '2026-07-14';
 
 // Ciclo cerrado: 15 del mes anterior → 14 del mes actual (referido a hoy, día 15)
 function getCicloCerrado(hoy = new Date()) {
@@ -68,14 +68,10 @@ async function cerrarLiquidaciones() {
     ciclo.inicio = inicioOverride;
     console.log(`Override manual: --inicio ${inicioOverride}`);
   } else {
-    // Reglas de transición del piloto (solo sin override explícito)
+    // Transición del piloto (solo sin override explícito)
     if (ciclo.fin <= ULTIMO_CIERRE_MANUAL) {
-      console.log(`Ciclo ${ciclo.inicio} → ${ciclo.fin} ya facturado manualmente (piloto hasta 2026-07-11). No se genera liquidación.`);
+      console.log(`Ciclo ${ciclo.inicio} → ${ciclo.fin} ya cerrado manualmente (piloto hasta 2026-07-14). No se genera liquidación.`);
       return;
-    }
-    if (ciclo.inicio === '2026-07-15') {
-      ciclo.inicio = PRIMER_INICIO_AUTO;
-      console.log(`Primera liquidación automática: inicio ajustado a ${PRIMER_INICIO_AUTO} (el piloto cubrió hasta el 11 jul).`);
     }
   }
 
