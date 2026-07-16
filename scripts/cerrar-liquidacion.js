@@ -68,6 +68,16 @@ async function cerrarLiquidaciones() {
     ciclo.inicio = inicioOverride;
     console.log(`Override manual: --inicio ${inicioOverride}`);
   } else {
+    // Arranque de ciclo (corre día 15): la energía del ciclo entrante vuelve a
+    // Pendiente. El badge del portal lee clientes.estado_pago_mes_actual y
+    // se marca 'Al Día' a mano cuando el cliente paga la factura del cierre.
+    const { error: eReset } = await supabase
+      .from('clientes')
+      .update({ estado_pago_mes_actual: 'Pendiente' })
+      .not('f2pool_username', 'is', null);
+    if (eReset) console.error('✗ Reset estado_pago_mes_actual:', eReset.message);
+    else console.log('✓ estado_pago_mes_actual → Pendiente (nuevo ciclo iniciado)');
+
     // Transición del piloto (solo sin override explícito)
     if (ciclo.fin <= ULTIMO_CIERRE_MANUAL) {
       console.log(`Ciclo ${ciclo.inicio} → ${ciclo.fin} ya cerrado manualmente (piloto hasta 2026-07-14). No se genera liquidación.`);
